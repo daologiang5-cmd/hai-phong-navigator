@@ -30,10 +30,10 @@ export function OldNameLookup({ onWardFound }: OldNameLookupProps) {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Search className="h-5 w-5 text-primary" />
-          Tra cứu tên phường/xã cũ
+      <CardHeader className="pb-3 map-header rounded-t-lg">
+        <CardTitle className="text-lg flex items-center gap-2 text-white">
+          <Search className="h-5 w-5" />
+          Tra cứu phường/xã trước sáp nhập
         </CardTitle>
       </CardHeader>
       <CardContent>

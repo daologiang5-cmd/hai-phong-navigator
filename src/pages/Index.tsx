@@ -53,6 +53,9 @@ const Index = () => {
         {/* Content Area - Scrollable */}
         <div className="flex-1 overflow-auto">
           <div className="p-6 space-y-6 max-w-5xl mx-auto">
+            {/* OLD NAME LOOKUP - TOP (above the map) */}
+            <OldNameLookup onWardFound={handleWardFound} />
+
             {/* Map Display */}
             <MapDisplay />
 
@@ -60,9 +63,6 @@ const Index = () => {
             <div className="bg-card rounded-lg border border-border min-h-[400px]">
               <WardDetails ward={selectedWard} />
             </div>
-
-            {/* Old Name Lookup */}
-            <OldNameLookup onWardFound={handleWardFound} />
           </div>
         </div>
       </main>
