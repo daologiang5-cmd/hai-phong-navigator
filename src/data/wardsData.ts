@@ -12,42 +12,41 @@ import wardsPart07 from './wards_part_07.md?raw';
 import wardsPart08 from './wards_part_08.md?raw';
 import wardsCSV from './wards.csv?raw';
 
-// Parse all markdown files
-const allMarkdownContent = [
-  wardsPart01,
-  wardsPart02,
-  wardsPart03,
-  wardsPart04,
-  wardsPart05,
-  wardsPart06,
-  wardsPart07,
-  wardsPart08,
-].join('\n\n');
+// Parse wards from EACH markdown file separately to ensure proper boundary detection
+const parsedWards: Ward[] = [
+  ...parseMarkdownWards(wardsPart01),
+  ...parseMarkdownWards(wardsPart02),
+  ...parseMarkdownWards(wardsPart03),
+  ...parseMarkdownWards(wardsPart04),
+  ...parseMarkdownWards(wardsPart05),
+  ...parseMarkdownWards(wardsPart06),
+  ...parseMarkdownWards(wardsPart07),
+  ...parseMarkdownWards(wardsPart08),
+];
 
-// Parse wards from markdown ONLY (single source of truth for sidebar)
-const parsedWards = parseMarkdownWards(allMarkdownContent);
+console.log(`[Ward Data] Total wards from all markdown files: ${parsedWards.length}`);
 
 // Parse CSV data (for area/population enrichment only)
 const csvData = parseCSV(wardsCSV);
 
 // STRICT DEDUPLICATION: Use EXACT ward name (with full diacritics) as key
-// This ensures "Cẩm Giàng" and "Cẩm Giang" are treated as SEPARATE wards
+// "Cẩm Giàng" and "Cẩm Giang" are SEPARATE wards - DO NOT merge them
 const uniqueWardsMap = new Map<string, Ward>();
 
-// ONLY add wards from Markdown # headings (NOT from CSV)
 parsedWards.forEach(ward => {
   const exactName = normalizeWardName(ward.name);
   
-  // Skip if we already have this EXACT ward name
+  // Skip if we already have this EXACT ward name (case-sensitive with diacritics)
   if (uniqueWardsMap.has(exactName)) {
-    console.log(`[Ward Data] Duplicate ward skipped (exact match): ${exactName}`);
+    console.log(`[Ward Data] Duplicate skipped (exact match): "${exactName}"`);
     return;
   }
   
-  // Find CSV data by EXACT match only (no slug matching)
+  // Find CSV data by EXACT match first
   let csvInfo = csvData.get(exactName);
+  
+  // Try case-insensitive match (but diacritic-preserving)
   if (!csvInfo) {
-    // Try case-insensitive but diacritic-preserving match
     for (const [csvName, data] of csvData) {
       if (normalizeWardName(csvName).toLowerCase() === exactName.toLowerCase()) {
         csvInfo = data;
@@ -56,7 +55,7 @@ parsedWards.forEach(ward => {
     }
   }
   
-  // Determine area and population - prefer CSV for these as they have structured data
+  // Use CSV for area/population if available, otherwise use markdown values
   let area = ward.area || '';
   let population = ward.population || '';
   
@@ -65,39 +64,41 @@ parsedWards.forEach(ward => {
     if (csvInfo.population) population = csvInfo.population;
   }
   
-  // Add " người" suffix if population is just a number
-  if (population && !population.includes('người') && /^\d+$/.test(population.replace(/\D/g, ''))) {
-    // Keep population as number, view will add suffix
-  }
-  
+  // Store the ward with its OWN isolated data (no cross-ward mixing)
   uniqueWardsMap.set(exactName, {
-    ...ward,
     name: exactName,
     area: area || 'N/A',
     population: population || 'N/A',
-    // Keep mergedFrom from markdown - this is the authoritative source
-    mergedFrom: ward.mergedFrom.length > 0 
-      ? ward.mergedFrom 
-      : csvInfo?.mergedFrom 
-        ? csvInfo.mergedFrom.split(/[;,]/).map(s => s.trim()).filter(Boolean)
-        : [],
+    // CRITICAL: These come ONLY from this ward's markdown block
+    mergedFrom: ward.mergedFrom,
+    landmarks: ward.landmarks,
+    specialties: ward.specialties,
+    description: ward.description,
   });
 });
 
-// Validation: Log warning if count is not expected
+// Final validation
 const wardCount = uniqueWardsMap.size;
-console.log(`[Ward Data] Total unique wards: ${wardCount}`);
+console.log(`[Ward Data] Final unique wards: ${wardCount}`);
 
-// Convert map to array and sort alphabetically
+// List wards with similar names for verification
+const wardNames = Array.from(uniqueWardsMap.keys()).sort((a, b) => a.localeCompare(b, 'vi'));
+const similarNames = wardNames.filter(n => n.toLowerCase().includes('cẩm'));
+if (similarNames.length > 0) {
+  console.log(`[Ward Data] Wards with "Cẩm": ${similarNames.join(', ')}`);
+}
+
+// Convert map to array and sort alphabetically (Vietnamese)
 export const wards: Ward[] = Array.from(uniqueWardsMap.values())
   .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 
 // Build old name to new name index
 export const oldNameIndex = buildOldNameIndex(wards);
 
-// Get ward by name
+// Get ward by name (exact match with diacritics)
 export function getWardByName(name: string): Ward | undefined {
-  return wards.find(w => w.name.toLowerCase() === name.toLowerCase());
+  const normalized = normalizeWardName(name);
+  return wards.find(w => w.name === normalized || w.name.toLowerCase() === normalized.toLowerCase());
 }
 
 // Search wards by name (new or old)
@@ -137,7 +138,7 @@ export function lookupOldWardName(oldName: string): string | null {
   return null;
 }
 
-// Answer chatbot questions based on ward data ONLY
+// Answer chatbot questions based on ward data ONLY - NO hallucination
 export function answerQuestion(question: string): string {
   const lowerQuestion = question.toLowerCase();
   
