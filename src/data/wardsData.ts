@@ -1,5 +1,5 @@
 import { Ward } from '@/types/ward';
-import { parseMarkdownWards, parseCSV, buildOldNameIndex } from '@/utils/parseMarkdown';
+import { parseMarkdownWards, parseCSV, buildOldNameIndex, normalizeToSlug } from '@/utils/parseMarkdown';
 
 // Import all markdown files
 import wardsPart01 from './wards_part_01.md?raw';
@@ -24,27 +24,44 @@ const allMarkdownContent = [
   wardsPart08,
 ].join('\n\n');
 
-// Parse wards from markdown
+// Parse wards from markdown ONLY (single source of truth for sidebar)
 const parsedWards = parseMarkdownWards(allMarkdownContent);
 
-// Parse CSV data
+// Parse CSV data (for area/population enrichment only)
 const csvData = parseCSV(wardsCSV);
 
-// Use a Map to ensure unique wards by name (normalized)
+// STRICT DEDUPLICATION: Use normalized slug as key
 const uniqueWardsMap = new Map<string, Ward>();
 
-// First, add all wards from markdown
+// ONLY add wards from Markdown # headings (NOT from CSV)
 parsedWards.forEach(ward => {
   const normalizedName = ward.name.trim();
-  const csvInfo = csvData.get(normalizedName);
+  const slug = normalizeToSlug(normalizedName);
   
-  uniqueWardsMap.set(normalizedName, {
+  // Skip if we already have this ward (by slug)
+  if (uniqueWardsMap.has(slug)) {
+    return;
+  }
+  
+  // Find CSV data by trying exact match first, then normalized match
+  let csvInfo = csvData.get(normalizedName);
+  if (!csvInfo) {
+    // Try to find by matching slug
+    for (const [csvName, data] of csvData) {
+      if (normalizeToSlug(csvName) === slug) {
+        csvInfo = data;
+        break;
+      }
+    }
+  }
+  
+  uniqueWardsMap.set(slug, {
     ...ward,
     name: normalizedName,
-    // Use CSV data for area and population if available, otherwise use markdown
+    // Use CSV data for area and population if available
     area: csvInfo?.area || ward.area || 'N/A',
     population: csvInfo?.population || ward.population || 'N/A',
-    // If mergedFrom is empty from markdown, try to get from CSV
+    // Keep mergedFrom from markdown, or use CSV as fallback
     mergedFrom: ward.mergedFrom.length > 0 
       ? ward.mergedFrom 
       : csvInfo?.mergedFrom 
@@ -53,21 +70,13 @@ parsedWards.forEach(ward => {
   });
 });
 
-// Add any wards from CSV that don't exist in markdown
-csvData.forEach((data, name) => {
-  const normalizedName = name.trim();
-  if (!uniqueWardsMap.has(normalizedName)) {
-    uniqueWardsMap.set(normalizedName, {
-      name: normalizedName,
-      mergedFrom: data.mergedFrom.split(/[;,]/).map(s => s.trim()).filter(Boolean),
-      area: data.area,
-      population: data.population,
-      landmarks: [],
-      specialties: [],
-      description: '',
-    });
-  }
-});
+// DO NOT add CSV-only wards to sidebar - only markdown wards are shown
+
+// Validation: Log warning if count is not 113
+const wardCount = uniqueWardsMap.size;
+if (wardCount !== 113) {
+  console.warn(`[Ward Data] Expected 113 wards, found ${wardCount}. Check for duplicates or missing data.`);
+}
 
 // Convert map to array and sort alphabetically
 export const wards: Ward[] = Array.from(uniqueWardsMap.values())

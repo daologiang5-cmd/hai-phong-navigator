@@ -1,6 +1,21 @@
 import { Ward } from '@/types/ward';
 
 /**
+ * Normalize ward name to slug (lowercase, no diacritics)
+ * Used for deduplication
+ */
+export function normalizeToSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/\s+/g, ' ');
+}
+
+/**
  * Parse ward data from markdown content
  * Each ward starts with # WARD_NAME (with various markdown escapes)
  * Sections are identified by ## Section Name
