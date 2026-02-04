@@ -1,5 +1,5 @@
 import { Ward } from '@/types/ward';
-import { parseMarkdownWards, parseCSV, buildOldNameIndex, normalizeToSlug } from '@/utils/parseMarkdown';
+import { parseMarkdownWards, parseCSV, buildOldNameIndex, normalizeWardName } from '@/utils/parseMarkdown';
 
 // Import all markdown files
 import wardsPart01 from './wards_part_01.md?raw';
@@ -30,26 +30,26 @@ const parsedWards = parseMarkdownWards(allMarkdownContent);
 // Parse CSV data (for area/population enrichment only)
 const csvData = parseCSV(wardsCSV);
 
-// STRICT DEDUPLICATION: Use normalized slug as key
+// STRICT DEDUPLICATION: Use EXACT ward name (with full diacritics) as key
+// This ensures "Cẩm Giàng" and "Cẩm Giang" are treated as SEPARATE wards
 const uniqueWardsMap = new Map<string, Ward>();
 
 // ONLY add wards from Markdown # headings (NOT from CSV)
 parsedWards.forEach(ward => {
-  const normalizedName = ward.name.trim();
-  const slug = normalizeToSlug(normalizedName);
+  const exactName = normalizeWardName(ward.name);
   
-  // Skip if we already have this ward (by slug)
-  if (uniqueWardsMap.has(slug)) {
-    console.log(`[Ward Data] Duplicate ward skipped: ${normalizedName}`);
+  // Skip if we already have this EXACT ward name
+  if (uniqueWardsMap.has(exactName)) {
+    console.log(`[Ward Data] Duplicate ward skipped (exact match): ${exactName}`);
     return;
   }
   
-  // Find CSV data by trying exact match first, then normalized match
-  let csvInfo = csvData.get(normalizedName);
+  // Find CSV data by EXACT match only (no slug matching)
+  let csvInfo = csvData.get(exactName);
   if (!csvInfo) {
-    // Try to find by matching slug
+    // Try case-insensitive but diacritic-preserving match
     for (const [csvName, data] of csvData) {
-      if (normalizeToSlug(csvName) === slug) {
+      if (normalizeWardName(csvName).toLowerCase() === exactName.toLowerCase()) {
         csvInfo = data;
         break;
       }
@@ -70,9 +70,9 @@ parsedWards.forEach(ward => {
     // Keep population as number, view will add suffix
   }
   
-  uniqueWardsMap.set(slug, {
+  uniqueWardsMap.set(exactName, {
     ...ward,
-    name: normalizedName,
+    name: exactName,
     area: area || 'N/A',
     population: population || 'N/A',
     // Keep mergedFrom from markdown - this is the authoritative source

@@ -1,18 +1,13 @@
 import { Ward } from '@/types/ward';
 
 /**
- * Normalize ward name to slug (lowercase, no diacritics)
- * Used for deduplication
+ * Normalize ward name for exact comparison (preserves diacritics)
+ * Used for deduplication - NO accent stripping
  */
-export function normalizeToSlug(name: string): string {
+export function normalizeWardName(name: string): string {
   return name
-    .toLowerCase()
     .trim()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .replace(/\s+/g, ' ');
+    .replace(/\s+/g, ' ');  // Only normalize whitespace, preserve all diacritics
 }
 
 /**
