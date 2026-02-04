@@ -1,6 +1,5 @@
 import { Ward } from '@/types/ward';
 import { MapPin, Users, Ruler, GitMerge, Landmark, UtensilsCrossed, FileText } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -11,7 +10,7 @@ interface WardDetailsProps {
 export function WardDetails({ ward }: WardDetailsProps) {
   if (!ward) {
     return (
-      <div className="h-full flex items-center justify-center text-muted-foreground">
+      <div className="h-full flex items-center justify-center text-muted-foreground p-8">
         <div className="text-center">
           <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p className="text-lg">Chọn một phường/xã để xem thông tin chi tiết</p>
@@ -19,8 +18,6 @@ export function WardDetails({ ward }: WardDetailsProps) {
       </div>
     );
   }
-
-  const hasDetails = ward.landmarks.length > 0 || ward.specialties.length > 0 || ward.description;
 
   return (
     <ScrollArea className="h-full">
@@ -41,120 +38,78 @@ export function WardDetails({ ward }: WardDetailsProps) {
         </div>
 
         {/* Merged From */}
-        {ward.mergedFrom.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <GitMerge className="h-5 w-5 text-primary" />
-                Sáp nhập từ
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {ward.mergedFrom.map((name, index) => (
-                  <Badge key={index} variant="secondary" className="text-sm">
-                    {name}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <GitMerge className="h-5 w-5 text-primary" />
+            Sáp nhập từ
+          </h2>
+          {ward.mergedFrom.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {ward.mergedFrom.map((name, index) => (
+                <Badge key={index} variant="secondary" className="text-sm">
+                  {name}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground italic">Chưa có dữ liệu chi tiết.</p>
+          )}
+        </section>
 
-        {/* Landmarks */}
-        {ward.landmarks.length > 0 ? (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Landmark className="h-5 w-5 text-info-badge" />
-                Địa điểm nổi bật ({ward.landmarks.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-3">
-                {ward.landmarks.map((landmark, index) => (
-                  <li key={index} className="landmark-card">
-                    <p className="text-sm leading-relaxed">{landmark}</p>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Landmark className="h-5 w-5 text-info-badge" />
-                Địa điểm nổi bật
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground italic">Chưa có dữ liệu chi tiết.</p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Landmarks - FULL LIST, NO TRUNCATION */}
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <Landmark className="h-5 w-5 text-primary" />
+            Địa điểm nổi bật {ward.landmarks.length > 0 && `(${ward.landmarks.length})`}
+          </h2>
+          {ward.landmarks.length > 0 ? (
+            <ul className="space-y-2 pl-1">
+              {ward.landmarks.map((landmark, index) => (
+                <li key={index} className="flex items-start gap-3 text-foreground/90">
+                  <span className="text-primary font-bold shrink-0">•</span>
+                  <span className="leading-relaxed">{landmark}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground italic">Chưa có dữ liệu chi tiết.</p>
+          )}
+        </section>
 
-        {/* Specialties */}
-        {ward.specialties.length > 0 ? (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <UtensilsCrossed className="h-5 w-5 text-accent" />
-                Đặc sản ({ward.specialties.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-3">
-                {ward.specialties.map((specialty, index) => (
-                  <li key={index} className="specialty-card">
-                    <p className="text-sm leading-relaxed">{specialty}</p>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <UtensilsCrossed className="h-5 w-5 text-accent" />
-                Đặc sản
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground italic">Chưa có dữ liệu chi tiết.</p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Specialties - FULL LIST, NO TRUNCATION */}
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <UtensilsCrossed className="h-5 w-5 text-accent" />
+            Đặc sản {ward.specialties.length > 0 && `(${ward.specialties.length})`}
+          </h2>
+          {ward.specialties.length > 0 ? (
+            <ul className="space-y-2 pl-1">
+              {ward.specialties.map((specialty, index) => (
+                <li key={index} className="flex items-start gap-3 text-foreground/90">
+                  <span className="text-accent font-bold shrink-0">•</span>
+                  <span className="leading-relaxed">{specialty}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground italic">Chưa có dữ liệu chi tiết.</p>
+          )}
+        </section>
 
-        {/* Description */}
-        {ward.description ? (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                Mô tả
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm leading-relaxed text-foreground/90">
-                {ward.description}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                Mô tả
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground italic">Chưa có dữ liệu chi tiết.</p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Description - FULL TEXT, NO TRUNCATION */}
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <FileText className="h-5 w-5 text-muted-foreground" />
+            Mô tả
+          </h2>
+          {ward.description ? (
+            <p className="leading-relaxed text-foreground/90 whitespace-pre-wrap">
+              {ward.description}
+            </p>
+          ) : (
+            <p className="text-muted-foreground italic">Chưa có dữ liệu chi tiết.</p>
+          )}
+        </section>
       </div>
     </ScrollArea>
   );

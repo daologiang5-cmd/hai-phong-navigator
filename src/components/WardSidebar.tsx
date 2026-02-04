@@ -31,6 +31,11 @@ export function WardSidebar({ wards, selectedWard, onSelectWard }: WardSidebarPr
     });
   }, [wards, searchQuery]);
 
+  // Get the original index of a ward in the full wards list (for numbering)
+  const getWardIndex = (wardName: string): number => {
+    return wards.findIndex(w => w.name === wardName) + 1;
+  };
+
   return (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
       {/* Header */}
@@ -61,25 +66,37 @@ export function WardSidebar({ wards, selectedWard, onSelectWard }: WardSidebarPr
               Không tìm thấy kết quả
             </div>
           ) : (
-            filteredWards.map((ward) => (
-              <button
-                key={ward.name}
-                onClick={() => onSelectWard(ward)}
-                className={`ward-item w-full text-left ${
-                  selectedWard?.name === ward.name ? 'active' : ''
-                }`}
-              >
-                <div className="font-medium text-sidebar-foreground">
-                  {ward.name}
-                </div>
-                {ward.mergedFrom.length > 0 && (
-                  <div className="text-xs text-sidebar-foreground/60 mt-1 truncate">
-                    ← {ward.mergedFrom.slice(0, 3).join(', ')}
-                    {ward.mergedFrom.length > 3 && '...'}
+            filteredWards.map((ward) => {
+              const index = getWardIndex(ward.name);
+              const paddedIndex = String(index).padStart(3, '0');
+              
+              return (
+                <button
+                  key={ward.name}
+                  onClick={() => onSelectWard(ward)}
+                  className={`ward-item w-full text-left ${
+                    selectedWard?.name === ward.name ? 'active' : ''
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="text-sidebar-primary font-mono text-sm font-bold shrink-0">
+                      {paddedIndex}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sidebar-foreground">
+                        {ward.name}
+                      </div>
+                      {ward.mergedFrom.length > 0 && (
+                        <div className="text-xs text-sidebar-foreground/60 mt-1 truncate">
+                          ← {ward.mergedFrom.slice(0, 2).join(', ')}
+                          {ward.mergedFrom.length > 2 && ` (+${ward.mergedFrom.length - 2})`}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </button>
-            ))
+                </button>
+              );
+            })
           )}
         </div>
       </ScrollArea>
@@ -87,7 +104,7 @@ export function WardSidebar({ wards, selectedWard, onSelectWard }: WardSidebarPr
       {/* Footer */}
       <div className="p-3 border-t border-sidebar-border text-center">
         <p className="text-xs text-sidebar-foreground/60">
-          Tổng: {filteredWards.length} / {wards.length} phường/xã
+          Hiển thị: {filteredWards.length} / {wards.length} phường/xã
         </p>
       </div>
     </div>

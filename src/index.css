@@ -9,106 +9,106 @@
 
 @layer base {
   :root {
-    /* Primary - Deep government blue */
-    --background: 210 40% 98%;
-    --foreground: 210 50% 10%;
+    /* Primary - Red theme for Hải Phòng */
+    --background: 0 0% 98%;
+    --foreground: 0 0% 10%;
 
     /* Cards and surfaces */
     --card: 0 0% 100%;
-    --card-foreground: 210 50% 10%;
+    --card-foreground: 0 0% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 210 50% 10%;
+    --popover-foreground: 0 0% 10%;
 
-    /* Primary brand - Hai Phong red accent */
-    --primary: 0 72% 45%;
+    /* Primary brand - Hải Phòng RED */
+    --primary: 0 72% 50%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary - Government teal */
-    --secondary: 185 40% 94%;
-    --secondary-foreground: 185 60% 25%;
+    /* Secondary - Light red tint */
+    --secondary: 0 30% 95%;
+    --secondary-foreground: 0 50% 30%;
 
     /* Muted surfaces */
-    --muted: 210 30% 96%;
-    --muted-foreground: 210 20% 45%;
+    --muted: 0 10% 96%;
+    --muted-foreground: 0 10% 45%;
 
-    /* Accent - Gold/amber for important elements */
-    --accent: 38 90% 50%;
-    --accent-foreground: 38 90% 15%;
+    /* Accent - Warm amber for highlights */
+    --accent: 30 90% 55%;
+    --accent-foreground: 30 90% 15%;
 
     /* Destructive */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
 
     /* Borders and inputs */
-    --border: 210 25% 88%;
-    --input: 210 25% 88%;
-    --ring: 185 60% 40%;
+    --border: 0 15% 88%;
+    --input: 0 15% 88%;
+    --ring: 0 72% 50%;
 
     --radius: 0.5rem;
 
-    /* Sidebar - Darker blue for contrast */
-    --sidebar-background: 210 45% 12%;
-    --sidebar-foreground: 210 20% 90%;
-    --sidebar-primary: 0 72% 55%;
+    /* Sidebar - Dark red/maroon for contrast */
+    --sidebar-background: 0 50% 15%;
+    --sidebar-foreground: 0 10% 95%;
+    --sidebar-primary: 0 72% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 18%;
-    --sidebar-accent-foreground: 210 20% 90%;
-    --sidebar-border: 210 35% 20%;
-    --sidebar-ring: 185 60% 50%;
+    --sidebar-accent: 0 40% 22%;
+    --sidebar-accent-foreground: 0 10% 95%;
+    --sidebar-border: 0 35% 25%;
+    --sidebar-ring: 0 60% 55%;
 
     /* Custom semantic tokens */
-    --map-header: 185 50% 30%;
+    --map-header: 0 60% 40%;
     --map-header-foreground: 0 0% 100%;
-    --landmark-bg: 185 35% 95%;
-    --specialty-bg: 38 85% 95%;
-    --info-badge: 210 60% 50%;
+    --landmark-bg: 0 20% 96%;
+    --specialty-bg: 30 70% 95%;
+    --info-badge: 0 60% 50%;
     --info-badge-foreground: 0 0% 100%;
   }
 
   .dark {
-    --background: 210 50% 8%;
-    --foreground: 210 20% 95%;
+    --background: 0 20% 8%;
+    --foreground: 0 10% 95%;
 
-    --card: 210 45% 12%;
-    --card-foreground: 210 20% 95%;
+    --card: 0 20% 12%;
+    --card-foreground: 0 10% 95%;
 
-    --popover: 210 45% 12%;
-    --popover-foreground: 210 20% 95%;
+    --popover: 0 20% 12%;
+    --popover-foreground: 0 10% 95%;
 
     --primary: 0 72% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 185 30% 15%;
-    --secondary-foreground: 185 40% 85%;
+    --secondary: 0 25% 18%;
+    --secondary-foreground: 0 20% 85%;
 
-    --muted: 210 35% 15%;
-    --muted-foreground: 210 20% 65%;
+    --muted: 0 15% 15%;
+    --muted-foreground: 0 10% 65%;
 
-    --accent: 38 85% 55%;
-    --accent-foreground: 38 90% 10%;
+    --accent: 30 80% 55%;
+    --accent-foreground: 30 90% 10%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62% 35%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 210 35% 20%;
-    --input: 210 35% 20%;
-    --ring: 185 50% 50%;
+    --border: 0 20% 22%;
+    --input: 0 20% 22%;
+    --ring: 0 60% 55%;
 
-    --sidebar-background: 210 50% 6%;
-    --sidebar-foreground: 210 20% 90%;
+    --sidebar-background: 0 40% 8%;
+    --sidebar-foreground: 0 10% 92%;
     --sidebar-primary: 0 72% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 45% 12%;
-    --sidebar-accent-foreground: 210 20% 90%;
-    --sidebar-border: 210 40% 15%;
-    --sidebar-ring: 185 60% 50%;
+    --sidebar-accent: 0 35% 15%;
+    --sidebar-accent-foreground: 0 10% 92%;
+    --sidebar-border: 0 30% 18%;
+    --sidebar-ring: 0 60% 55%;
 
-    --map-header: 185 40% 25%;
+    --map-header: 0 50% 35%;
     --map-header-foreground: 0 0% 100%;
-    --landmark-bg: 185 30% 15%;
-    --specialty-bg: 38 60% 15%;
-    --info-badge: 210 50% 45%;
+    --landmark-bg: 0 25% 18%;
+    --specialty-bg: 30 50% 18%;
+    --info-badge: 0 55% 50%;
     --info-badge-foreground: 0 0% 100%;
   }
 }
@@ -150,7 +150,7 @@
 @layer components {
   /* Map header banner */
   .map-header {
-    @apply bg-gradient-to-r from-[hsl(var(--map-header))] to-[hsl(185,45%,35%)] text-[hsl(var(--map-header-foreground))];
+    @apply bg-gradient-to-r from-[hsl(var(--map-header))] to-[hsl(0,55%,45%)] text-[hsl(var(--map-header-foreground))];
   }
 
   /* Ward list item */
