@@ -57,6 +57,13 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Custom semantic colors for the map app
+        "map-header": "hsl(var(--map-header))",
+        "map-header-foreground": "hsl(var(--map-header-foreground))",
+        "landmark-bg": "hsl(var(--landmark-bg))",
+        "specialty-bg": "hsl(var(--specialty-bg))",
+        "info-badge": "hsl(var(--info-badge))",
+        "info-badge-foreground": "hsl(var(--info-badge-foreground))",
       },
       borderRadius: {
         lg: "var(--radius)",
