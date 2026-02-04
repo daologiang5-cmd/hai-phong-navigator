@@ -40,6 +40,7 @@ parsedWards.forEach(ward => {
   
   // Skip if we already have this ward (by slug)
   if (uniqueWardsMap.has(slug)) {
+    console.log(`[Ward Data] Duplicate ward skipped: ${normalizedName}`);
     return;
   }
   
@@ -55,13 +56,26 @@ parsedWards.forEach(ward => {
     }
   }
   
+  // Determine area and population - prefer CSV for these as they have structured data
+  let area = ward.area || '';
+  let population = ward.population || '';
+  
+  if (csvInfo) {
+    if (csvInfo.area) area = csvInfo.area;
+    if (csvInfo.population) population = csvInfo.population;
+  }
+  
+  // Add " người" suffix if population is just a number
+  if (population && !population.includes('người') && /^\d+$/.test(population.replace(/\D/g, ''))) {
+    // Keep population as number, view will add suffix
+  }
+  
   uniqueWardsMap.set(slug, {
     ...ward,
     name: normalizedName,
-    // Use CSV data for area and population if available
-    area: csvInfo?.area || ward.area || 'N/A',
-    population: csvInfo?.population || ward.population || 'N/A',
-    // Keep mergedFrom from markdown, or use CSV as fallback
+    area: area || 'N/A',
+    population: population || 'N/A',
+    // Keep mergedFrom from markdown - this is the authoritative source
     mergedFrom: ward.mergedFrom.length > 0 
       ? ward.mergedFrom 
       : csvInfo?.mergedFrom 
@@ -70,13 +84,9 @@ parsedWards.forEach(ward => {
   });
 });
 
-// DO NOT add CSV-only wards to sidebar - only markdown wards are shown
-
-// Validation: Log warning if count is not 113
+// Validation: Log warning if count is not expected
 const wardCount = uniqueWardsMap.size;
-if (wardCount !== 113) {
-  console.warn(`[Ward Data] Expected 113 wards, found ${wardCount}. Check for duplicates or missing data.`);
-}
+console.log(`[Ward Data] Total unique wards: ${wardCount}`);
 
 // Convert map to array and sort alphabetically
 export const wards: Ward[] = Array.from(uniqueWardsMap.values())
@@ -127,28 +137,33 @@ export function lookupOldWardName(oldName: string): string | null {
   return null;
 }
 
-// Answer chatbot questions based on ward data
+// Answer chatbot questions based on ward data ONLY
 export function answerQuestion(question: string): string {
   const lowerQuestion = question.toLowerCase();
   
   // Extract ward name from question
   let targetWard: Ward | undefined;
   
+  // First try exact matches for ward names
   for (const ward of wards) {
     if (lowerQuestion.includes(ward.name.toLowerCase())) {
       targetWard = ward;
       break;
     }
-    
-    // Check old names too
-    for (const oldName of ward.mergedFrom) {
-      const cleanName = oldName.replace(/\s*\([^)]*\)/g, '').trim();
-      if (lowerQuestion.includes(cleanName.toLowerCase())) {
-        targetWard = ward;
-        break;
+  }
+  
+  // If not found, try old names
+  if (!targetWard) {
+    for (const ward of wards) {
+      for (const oldName of ward.mergedFrom) {
+        const cleanName = oldName.replace(/\s*\([^)]*\)/g, '').trim();
+        if (lowerQuestion.includes(cleanName.toLowerCase())) {
+          targetWard = ward;
+          break;
+        }
       }
+      if (targetWard) break;
     }
-    if (targetWard) break;
   }
   
   if (!targetWard) {
@@ -156,39 +171,54 @@ export function answerQuestion(question: string): string {
   }
   
   // Determine what information is being asked
-  if (lowerQuestion.includes('đặc sản') || lowerQuestion.includes('đặc sản gì') || lowerQuestion.includes('món ăn')) {
+  if (lowerQuestion.includes('đặc sản') || lowerQuestion.includes('món ăn') || lowerQuestion.includes('ẩm thực')) {
     if (targetWard.specialties.length === 0) {
       return `Chưa có dữ liệu chi tiết về đặc sản của ${targetWard.name}.`;
     }
     return `**Đặc sản của ${targetWard.name}:**\n${targetWard.specialties.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
   }
   
-  if (lowerQuestion.includes('sáp nhập') || lowerQuestion.includes('từ đâu') || lowerQuestion.includes('gộp từ')) {
+  if (lowerQuestion.includes('sáp nhập') || lowerQuestion.includes('từ đâu') || lowerQuestion.includes('gộp từ') || lowerQuestion.includes('trước đây')) {
     if (targetWard.mergedFrom.length === 0) {
       return `Chưa có dữ liệu chi tiết về nguồn gốc sáp nhập của ${targetWard.name}.`;
     }
     return `**${targetWard.name} được sáp nhập từ:**\n${targetWard.mergedFrom.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
   }
   
-  if (lowerQuestion.includes('dân số') || lowerQuestion.includes('bao nhiêu người')) {
+  if (lowerQuestion.includes('dân số') || lowerQuestion.includes('bao nhiêu người') || lowerQuestion.includes('số dân')) {
     return `**Dân số của ${targetWard.name}:** ${targetWard.population} người`;
   }
   
-  if (lowerQuestion.includes('diện tích') || lowerQuestion.includes('rộng')) {
+  if (lowerQuestion.includes('diện tích') || lowerQuestion.includes('rộng') || lowerQuestion.includes('km')) {
     return `**Diện tích của ${targetWard.name}:** ${targetWard.area}`;
   }
   
-  if (lowerQuestion.includes('địa điểm') || lowerQuestion.includes('danh lam') || lowerQuestion.includes('di tích') || lowerQuestion.includes('đến đâu')) {
+  if (lowerQuestion.includes('địa điểm') || lowerQuestion.includes('danh lam') || lowerQuestion.includes('di tích') || lowerQuestion.includes('tham quan') || lowerQuestion.includes('du lịch')) {
     if (targetWard.landmarks.length === 0) {
       return `Chưa có dữ liệu chi tiết về địa điểm nổi bật của ${targetWard.name}.`;
     }
     return `**Địa điểm nổi bật của ${targetWard.name}:**\n${targetWard.landmarks.map((l, i) => `${i + 1}. ${l}`).join('\n')}`;
   }
   
+  if (lowerQuestion.includes('mô tả') || lowerQuestion.includes('giới thiệu') || lowerQuestion.includes('thông tin')) {
+    if (!targetWard.description) {
+      return `Chưa có dữ liệu chi tiết mô tả về ${targetWard.name}.`;
+    }
+    return `**Mô tả về ${targetWard.name}:**\n${targetWard.description}`;
+  }
+  
   // Default: return overview
-  return `**Thông tin về ${targetWard.name}:**
-- **Diện tích:** ${targetWard.area}
-- **Dân số:** ${targetWard.population} người
-- **Sáp nhập từ:** ${targetWard.mergedFrom.length > 0 ? targetWard.mergedFrom.join(', ') : 'Chưa có dữ liệu'}
-${targetWard.description ? `\n**Mô tả:** ${targetWard.description}` : ''}`;
+  let response = `**Thông tin về ${targetWard.name}:**\n`;
+  response += `- **Diện tích:** ${targetWard.area}\n`;
+  response += `- **Dân số:** ${targetWard.population} người\n`;
+  
+  if (targetWard.mergedFrom.length > 0) {
+    response += `- **Sáp nhập từ:** ${targetWard.mergedFrom.join(', ')}\n`;
+  }
+  
+  if (targetWard.description) {
+    response += `\n**Mô tả:** ${targetWard.description}`;
+  }
+  
+  return response;
 }

@@ -16,116 +16,229 @@ export function normalizeToSlug(name: string): string {
 }
 
 /**
+ * Clean markdown formatting from text
+ */
+function cleanText(text: string): string {
+  return text
+    .replace(/\*\*/g, '')           // Remove bold markers
+    .replace(/\\#/g, '#')           // Unescape # 
+    .replace(/\\&/g, '&')           // Unescape &
+    .replace(/\\/g, '')             // Remove remaining escapes
+    .replace(/^#+\s*/, '')          // Remove leading # markers
+    .replace(/&nbsp;/g, ' ')        // Replace nbsp
+    .replace(/\s+/g, ' ')           // Normalize whitespace
+    .trim();
+}
+
+/**
+ * Check if a line is a ward header
+ * Returns the ward name if matched, null otherwise
+ */
+function parseWardHeader(line: string): string | null {
+  const trimmed = line.trim();
+  
+  // Various formats:
+  // ### \# WARD_NAME, ## \# WARD_NAME, **# WARD_NAME**, # WARD_NAME
+  // Also handle: ### # WARD, ## # WARD
+  const patterns = [
+    /^(?:#{1,3}\s*)?(?:\*\*)?\s*\\?#\s+([A-ZÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ][A-ZÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐA-zàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ\s]+?)(?:\*\*)?\s*$/,
+    /^@([A-ZÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ][A-ZÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐA-zàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ\s]+)\s*$/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = trimmed.match(pattern);
+    if (match) {
+      return cleanText(match[1]);
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Check if a line is a section header (## Section Name)
+ * Returns the section name if matched, null otherwise
+ */
+function parseSectionHeader(line: string): string | null {
+  const trimmed = line.trim();
+  
+  // Match: ## Section, ### ## Section, **## Section**, ## \## Section
+  const match = trimmed.match(/^(?:#{1,3}\s*)?(?:\*\*)?\s*\\?##\s+(.+?)(?:\*\*)?\s*$/);
+  if (match) {
+    return cleanText(match[1]).toLowerCase();
+  }
+  
+  return null;
+}
+
+/**
+ * Check if a line is a bullet item
+ * Returns the bullet content if matched, null otherwise
+ */
+function parseBulletItem(line: string): string | null {
+  const trimmed = line.trim();
+  
+  // Match various bullet formats:
+  // · Item, • Item, - Item, * Item
+  // ## · Item, ### · Item, **· Item**
+  // Also handle lines that start with ## · or ### · directly
+  const patterns = [
+    /^(?:#{1,3}\s*)?(?:\*\*)?\s*[·•\-\*]\s*(.+?)(?:\*\*)?\s*$/,
+    /^(?:#{1,3}\s+)[·•\-\*]\s+(.+?)\s*$/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = trimmed.match(pattern);
+    if (match && match[1]) {
+      const content = cleanText(match[1]);
+      // Filter out section headers that might match
+      if (content && 
+          !content.toLowerCase().includes('merged from') &&
+          !content.toLowerCase().match(/^area$/i) &&
+          !content.toLowerCase().match(/^population$/i) &&
+          !content.toLowerCase().match(/^landmarks$/i) &&
+          !content.toLowerCase().match(/^specialties$/i) &&
+          !content.toLowerCase().match(/^description$/i)) {
+        return content;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Parse ward data from markdown content
- * Each ward starts with # WARD_NAME (with various markdown escapes)
- * Sections are identified by ## Section Name
+ * Handles multiple formats:
+ * - ### \# WARD_NAME
+ * - ## \# WARD_NAME  
+ * - **# WARD_NAME**
+ * - # WARD_NAME
  */
 export function parseMarkdownWards(content: string): Ward[] {
   const wards: Ward[] = [];
   
-  // Clean up markdown escape sequences
-  const cleanContent = content
+  // First, clean up the content
+  let cleanContent = content
     .replace(/\\#/g, '#')
     .replace(/\\\*/g, '*')
     .replace(/\\&/g, '&');
   
-  // Split by ward headers - match various formats like:
-  // # WARD_NAME, ### # WARD_NAME, **# WARD_NAME**, ## # WARD_NAME
-  const wardSections = cleanContent.split(/(?=(?:^|\n)(?:#{1,3}\s*)?(?:\*\*)?#\s+[A-ZÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ][A-ZÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ\s]+(?:\*\*)?)/i);
+  // Split into lines for processing
+  const lines = cleanContent.split('\n');
   
-  for (const section of wardSections) {
-    if (!section.trim()) continue;
+  let currentWard: Partial<Ward> | null = null;
+  let currentSection = '';
+  let sectionContent: string[] = [];
+  let descriptionLines: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
     
-    const ward = parseWardSection(section);
-    if (ward && ward.name) {
-      wards.push(ward);
+    // Skip empty lines (but don't reset section)
+    if (!trimmedLine || trimmedLine === '&nbsp;') {
+      continue;
+    }
+    
+    // Check for ward header
+    const wardName = parseWardHeader(trimmedLine);
+    if (wardName) {
+      // Save previous ward if exists
+      if (currentWard && currentWard.name) {
+        // Process any remaining section
+        if (currentSection && sectionContent.length > 0) {
+          assignSection(currentWard, currentSection, sectionContent, descriptionLines);
+        }
+        wards.push(currentWard as Ward);
+      }
+      
+      // Start new ward
+      currentWard = {
+        name: wardName,
+        mergedFrom: [],
+        area: '',
+        population: '',
+        landmarks: [],
+        specialties: [],
+        description: '',
+      };
+      currentSection = '';
+      sectionContent = [];
+      descriptionLines = [];
+      continue;
+    }
+    
+    // Check for section header
+    const sectionName = parseSectionHeader(trimmedLine);
+    if (sectionName && currentWard) {
+      // Save previous section
+      if (currentSection && (sectionContent.length > 0 || descriptionLines.length > 0)) {
+        assignSection(currentWard, currentSection, sectionContent, descriptionLines);
+      }
+      
+      currentSection = sectionName;
+      sectionContent = [];
+      descriptionLines = [];
+      continue;
+    }
+    
+    // If we're in a section, try to parse content
+    if (currentWard && currentSection) {
+      // Check for bullet item
+      const bulletContent = parseBulletItem(trimmedLine);
+      if (bulletContent) {
+        sectionContent.push(bulletContent);
+        continue;
+      }
+      
+      // Handle plain text for Area, Population, Description sections
+      const plainText = cleanText(trimmedLine);
+      if (plainText && plainText !== '#' && plainText !== '##') {
+        // For Area and Population, take the first line only
+        if (currentSection === 'area' || currentSection === 'population') {
+          if (sectionContent.length === 0) {
+            sectionContent.push(plainText);
+          }
+        } else if (currentSection === 'description') {
+          // For description, accumulate text
+          descriptionLines.push(plainText);
+        }
+      }
     }
   }
+  
+  // Don't forget the last ward
+  if (currentWard && currentWard.name) {
+    if (currentSection && (sectionContent.length > 0 || descriptionLines.length > 0)) {
+      assignSection(currentWard, currentSection, sectionContent, descriptionLines);
+    }
+    wards.push(currentWard as Ward);
+  }
+  
+  console.log(`[ParseMarkdown] Parsed ${wards.length} wards`);
   
   return wards;
 }
 
-function parseWardSection(section: string): Ward | null {
-  // Extract ward name from header
-  const nameMatch = section.match(/(?:#{1,3}\s*)?(?:\*\*)?#\s+([A-ZÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ][A-ZÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐA-zàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ\s]+?)(?:\*\*)?\s*$/mi);
+function assignSection(ward: Partial<Ward>, section: string, content: string[], descriptionLines: string[]): void {
+  const sectionLower = section.toLowerCase();
   
-  if (!nameMatch) return null;
-  
-  const name = nameMatch[1].trim();
-  
-  // Extract sections
-  const mergedFrom = extractListSection(section, 'Merged From');
-  const area = extractTextSection(section, 'Area');
-  const population = extractTextSection(section, 'Population');
-  const landmarks = extractListSection(section, 'Landmarks');
-  const specialties = extractListSection(section, 'Specialties');
-  const description = extractTextSection(section, 'Description');
-  
-  return {
-    name,
-    mergedFrom,
-    area,
-    population,
-    landmarks,
-    specialties,
-    description,
-  };
-}
-
-function extractListSection(content: string, sectionName: string): string[] {
-  // Match section header with various formats
-  const regex = new RegExp(
-    `(?:#{2,3}\\s*)?(?:\\*\\*)?##\\s*${sectionName}(?:\\*\\*)?[\\s\\S]*?(?=(?:#{2,3}\\s*)?(?:\\*\\*)?##|$)`,
-    'i'
-  );
-  
-  const match = content.match(regex);
-  if (!match) return [];
-  
-  const sectionContent = match[0];
-  const items: string[] = [];
-  
-  // Extract bullet points (lines starting with * or -)
-  const bulletRegex = /^\s*[*-]\s+(?:\*\*)?(.+?)(?:\*\*)?$/gm;
-  let bulletMatch;
-  
-  while ((bulletMatch = bulletRegex.exec(sectionContent)) !== null) {
-    const item = bulletMatch[1]
-      .replace(/\*\*/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (item && !item.toLowerCase().includes(sectionName.toLowerCase())) {
-      items.push(item);
-    }
+  if (sectionLower.includes('merged') || sectionLower.includes('from')) {
+    ward.mergedFrom = content.filter(Boolean);
+  } else if (sectionLower.includes('area')) {
+    ward.area = content[0] || '';
+  } else if (sectionLower.includes('population')) {
+    ward.population = content[0] || '';
+  } else if (sectionLower.includes('landmark')) {
+    ward.landmarks = content.filter(Boolean);
+  } else if (sectionLower.includes('special')) {
+    ward.specialties = content.filter(Boolean);
+  } else if (sectionLower.includes('description')) {
+    // For description, join all lines including both content and descriptionLines
+    const allText = [...content, ...descriptionLines].filter(Boolean);
+    ward.description = allText.join(' ').trim();
   }
-  
-  return items;
-}
-
-function extractTextSection(content: string, sectionName: string): string {
-  const regex = new RegExp(
-    `(?:#{2,3}\\s*)?(?:\\*\\*)?##\\s*${sectionName}(?:\\*\\*)?\\s*([\\s\\S]*?)(?=(?:#{2,3}\\s*)?(?:\\*\\*)?##|$)`,
-    'i'
-  );
-  
-  const match = content.match(regex);
-  if (!match) return '';
-  
-  // Clean up the extracted text
-  let text = match[1]
-    .replace(/\*\*/g, '')
-    .replace(/^\s*[*-]\s*/gm, '')
-    .replace(/\n+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  
-  // For Area and Population, just get the first line/value
-  if (sectionName === 'Area' || sectionName === 'Population') {
-    const firstLine = text.split(/\s{2,}/)[0];
-    return firstLine || text;
-  }
-  
-  return text;
 }
 
 /**
