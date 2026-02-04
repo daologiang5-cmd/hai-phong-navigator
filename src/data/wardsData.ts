@@ -30,12 +30,17 @@ const parsedWards = parseMarkdownWards(allMarkdownContent);
 // Parse CSV data
 const csvData = parseCSV(wardsCSV);
 
-// Merge markdown data with CSV data
-export const wards: Ward[] = parsedWards.map(ward => {
-  const csvInfo = csvData.get(ward.name);
+// Use a Map to ensure unique wards by name (normalized)
+const uniqueWardsMap = new Map<string, Ward>();
+
+// First, add all wards from markdown
+parsedWards.forEach(ward => {
+  const normalizedName = ward.name.trim();
+  const csvInfo = csvData.get(normalizedName);
   
-  return {
+  uniqueWardsMap.set(normalizedName, {
     ...ward,
+    name: normalizedName,
     // Use CSV data for area and population if available, otherwise use markdown
     area: csvInfo?.area || ward.area || 'N/A',
     population: csvInfo?.population || ward.population || 'N/A',
@@ -45,14 +50,15 @@ export const wards: Ward[] = parsedWards.map(ward => {
       : csvInfo?.mergedFrom 
         ? csvInfo.mergedFrom.split(/[;,]/).map(s => s.trim()).filter(Boolean)
         : [],
-  };
+  });
 });
 
 // Add any wards from CSV that don't exist in markdown
 csvData.forEach((data, name) => {
-  if (!wards.find(w => w.name === name)) {
-    wards.push({
-      name,
+  const normalizedName = name.trim();
+  if (!uniqueWardsMap.has(normalizedName)) {
+    uniqueWardsMap.set(normalizedName, {
+      name: normalizedName,
       mergedFrom: data.mergedFrom.split(/[;,]/).map(s => s.trim()).filter(Boolean),
       area: data.area,
       population: data.population,
@@ -63,8 +69,9 @@ csvData.forEach((data, name) => {
   }
 });
 
-// Sort wards alphabetically by name
-wards.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+// Convert map to array and sort alphabetically
+export const wards: Ward[] = Array.from(uniqueWardsMap.values())
+  .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 
 // Build old name to new name index
 export const oldNameIndex = buildOldNameIndex(wards);
