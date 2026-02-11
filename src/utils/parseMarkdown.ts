@@ -1,137 +1,134 @@
 import { Ward, WardItem } from '@/types/ward';
 
 /**
- * Normalize ward name for exact comparison (preserves diacritics)
+ * Normalize ward name for comparison (preserves diacritics).
  */
 export function normalizeWardName(name: string): string {
   return name.trim().replace(/\s+/g, ' ');
 }
 
 /**
- * Strip ALL markdown formatting from a line: **, ##, \#, \-, leading whitespace, etc.
+ * Clean a single line by stripping ALL markdown formatting noise.
+ * Handles all observed variants:
+ *   - ### \# WARD_NAME
+ *   - **# WARD_NAME**
+ *   - ## \# WARD_NAME
+ *   - \# WARD_NAME
+ *   - \*\*image:\*\*URL
+ *   - **image:URL**
+ *   - ### image:URL
+ * After cleaning, pure content remains.
  */
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/\*\*/g, '')       // bold
-    .replace(/\\([#\-&_=?])/g, '$1') // escaped chars: \# → #, \- → -, etc.
-    .replace(/^#{1,6}\s*/, '')  // leading ### 
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+function cleanLine(line: string): string {
+  let s = line.trim();
+  if (!s) return '';
+
+  // 1. Convert escaped asterisks \* → *
+  s = s.replace(/\\\*/g, '*');
+
+  // 2. Unescape common markdown escapes: \# \- \& \_ \= \?
+  s = s.replace(/\\([#\-&_=?])/g, '$1');
+
+  // 3. Remove bold markers **
+  s = s.replace(/\*\*/g, '');
+
+  // 4. Remove ALL leading # markers (they are formatting noise in these files)
+  s = s.replace(/^(?:#{1,6}\s*)+/, '');
+
+  // 5. Normalize whitespace (tabs → spaces, collapse runs)
+  s = s.replace(/\t/g, ' ').replace(/\s+/g, ' ').trim();
+
+  return s;
 }
 
 /**
- * Detect a level-1 ward heading. Returns ward name or null.
- * Handles: # NAME, \# NAME, ### \# NAME, **# NAME**, ## \# NAME
+ * Detect if cleaned text is an all-uppercase ward name header.
  */
-function parseWardHeader(line: string): string | null {
-  const t = line.trim();
+function isWardHeader(text: string): boolean {
+  if (!text || text.length < 3) return false;
 
-  // Pattern: **# NAME** (bold-wrapped)
-  const boldMatch = t.match(/^\*\*#\s+(.+?)\*\*\s*$/);
-  if (boldMatch) return stripMarkdown(boldMatch[1]);
+  // Must not be a known section keyword
+  const lower = text.toLowerCase();
+  const sectionWords = ['merged from', 'area', 'population', 'landmarks', 'specialties', 'description'];
+  if (sectionWords.includes(lower)) return false;
 
-  // Pattern: (optional ###) \# NAME  
-  const escapedMatch = t.match(/^(?:#{1,6}\s*)?\\#\s+(.+?)\s*$/);
-  if (escapedMatch) return stripMarkdown(escapedMatch[1]);
+  // Must not be a data field
+  if (/^-\s*name:/i.test(text)) return false;
+  if (/^description:/i.test(text)) return false;
+  if (/^image:/i.test(text)) return false;
 
-  // Pattern: bare # NAME (not ## or ###)
-  if (/^#\s+[^#]/.test(t) && !t.startsWith('##')) {
-    const m = t.match(/^#\s+(.+?)\s*$/);
-    if (m) return stripMarkdown(m[1]);
-  }
+  // Extract only alphabetic characters (including Vietnamese diacritics)
+  const letters = text.replace(/[^a-zA-ZÀ-ỹ\u0100-\u024F\u1E00-\u1EFF]/g, '');
+  if (letters.length < 3) return false;
 
+  // All letters must be uppercase
+  return letters === letters.toUpperCase();
+}
+
+/**
+ * Detect a section header from cleaned text.
+ * Returns section key or null.
+ */
+function detectSection(text: string): string | null {
+  const lower = text.toLowerCase().trim();
+  if (lower === 'merged from') return 'merged';
+  if (lower === 'area') return 'area';
+  if (lower === 'population') return 'population';
+  if (lower === 'landmarks') return 'landmarks';
+  if (lower === 'specialties') return 'specialties';
+  if (lower === 'description') return 'description';
   return null;
 }
 
 /**
- * Detect a level-2 section heading. Returns section name (lowercased) or null.
- * Handles: ## Section, \## Section, ### \## Section, **## Section**
+ * Extract image URL from a cleaned line starting with "image:".
  */
-function parseSectionHeader(line: string): string | null {
-  const t = line.trim();
-  const sectionKeywords = ['merged', 'area', 'population', 'landmark', 'special', 'description'];
+function extractImageUrl(text: string): string | null {
+  const m = text.match(/^image:\s*(https?:\/\/\S+)/i);
+  return m ? m[1] : null;
+}
 
-  // Pattern: **## Section**
-  const boldMatch = t.match(/^\*\*##\s+(.+?)\*\*\s*$/);
-  if (boldMatch) {
-    const s = stripMarkdown(boldMatch[1]).toLowerCase();
-    if (sectionKeywords.some(k => s.includes(k))) return s;
-  }
+/**
+ * Extract item name from "- name: ..." cleaned line.
+ */
+function extractName(text: string): string | null {
+  const m = text.match(/^-\s*name:\s*(.+)/i);
+  return m ? m[1].trim() : null;
+}
 
-  // Pattern: (optional ###) \## Section
-  const escapedMatch = t.match(/^(?:#{1,6}\s*)?\\##\s+(.+?)\s*$/);
-  if (escapedMatch) {
-    const s = stripMarkdown(escapedMatch[1]).toLowerCase();
-    if (sectionKeywords.some(k => s.includes(k))) return s;
-  }
+/**
+ * Extract description from "description: ..." cleaned line.
+ */
+function extractDescription(text: string): string | null {
+  const m = text.match(/^\s*description:\s*(.+)/i);
+  return m ? m[1].trim() : null;
+}
 
-  // Pattern: bare ## Section (not ###)
-  if (/^##\s+[^#]/.test(t) && !t.startsWith('###')) {
-    const m = t.match(/^##\s+(.+?)\s*$/);
-    if (m) {
-      const s = stripMarkdown(m[1]).toLowerCase();
-      if (sectionKeywords.some(k => s.includes(k))) return s;
+/**
+ * Parse all wards from a single markdown file.
+ * Each ward is isolated: data never leaks between wards.
+ */
+export function parseMarkdownWards(content: string): Ward[] {
+  const rawLines = content.split('\n');
+
+  // Clean every line first
+  const lines = rawLines.map(cleanLine);
+
+  // Find ward boundaries (all-uppercase headers)
+  const boundaries: { index: number; name: string }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (isWardHeader(lines[i])) {
+      boundaries.push({ index: i, name: lines[i] });
     }
   }
 
-  return null;
-}
-
-/**
- * Extract image URL from a line containing image:URL
- */
-function extractImageUrl(line: string): string | null {
-  const stripped = line.trim()
-    .replace(/\*\*/g, '')
-    .replace(/^#{1,6}\s*/, '')
-    .trim();
-
-  const m = stripped.match(/^image:\s*(https?:\/\/\S+)/i);
-  if (m) return m[1].replace(/\\([&_=?#])/g, '$1');
-
-  return null;
-}
-
-/**
- * Check if a line contains a "- name:" item. Returns the name value or null.
- */
-function parseNameLine(line: string): string | null {
-  const clean = stripMarkdown(line);
-  const m = clean.match(/^-\s*name:\s*(.+)/i);
-  if (m) return m[1].trim();
-  return null;
-}
-
-/**
- * Check if a line contains a "description:" continuation. Returns the description text or null.
- */
-function parseDescriptionLine(line: string): string | null {
-  const clean = stripMarkdown(line);
-  const m = clean.match(/^\s*description:\s*(.+)/i);
-  if (m) return m[1].trim();
-  return null;
-}
-
-/**
- * Parse all wards from markdown content with STRICT BOUNDARY ISOLATION.
- */
-export function parseMarkdownWards(content: string): Ward[] {
-  const lines = content.split('\n');
+  // Parse each ward block independently
   const wards: Ward[] = [];
-
-  // Step 1: Find all ward boundaries
-  const boundaries: { line: number; name: string }[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const name = parseWardHeader(lines[i]);
-    if (name) boundaries.push({ line: i, name });
-  }
-
-  // Step 2: Parse each ward block independently
   for (let w = 0; w < boundaries.length; w++) {
-    const start = boundaries[w].line;
-    const end = w + 1 < boundaries.length ? boundaries[w + 1].line : lines.length;
-    const ward = parseWardBlock(boundaries[w].name, lines.slice(start, end));
+    const start = boundaries[w].index;
+    const end = w + 1 < boundaries.length ? boundaries[w + 1].index : lines.length;
+    const blockLines = lines.slice(start + 1, end);
+    const ward = parseWardBlock(boundaries[w].name, blockLines);
     wards.push(ward);
   }
 
@@ -139,7 +136,7 @@ export function parseMarkdownWards(content: string): Ward[] {
 }
 
 /**
- * Parse a single ward block. Each item has: name, description, image (on separate lines).
+ * Parse a single ward's block of cleaned lines.
  */
 function parseWardBlock(wardName: string, lines: string[]): Ward {
   const ward: Ward = {
@@ -153,22 +150,21 @@ function parseWardBlock(wardName: string, lines: string[]): Ward {
   };
 
   let currentSection = '';
-  // For building current item (name + description + images)
   let itemName = '';
   let itemDesc = '';
   let itemImages: string[] = [];
-  let descriptionParts: string[] = [];
+  let descParts: string[] = [];
 
   const flushItem = () => {
     if (!itemName) return;
-    const fullText = itemDesc ? `${itemName} -- ${itemDesc}` : itemName;
+    const text = itemDesc ? `${itemName} -- ${itemDesc}` : itemName;
 
-    if (currentSection.includes('merged') || currentSection.includes('from')) {
+    if (currentSection === 'merged') {
       ward.mergedFrom.push(itemName);
-    } else if (currentSection.includes('landmark')) {
-      ward.landmarks.push({ text: fullText, images: [...itemImages] });
-    } else if (currentSection.includes('special')) {
-      ward.specialties.push({ text: fullText, images: [...itemImages] });
+    } else if (currentSection === 'landmarks') {
+      ward.landmarks.push({ text, images: [...itemImages] });
+    } else if (currentSection === 'specialties') {
+      ward.specialties.push({ text, images: [...itemImages] });
     }
 
     itemName = '';
@@ -176,50 +172,48 @@ function parseWardBlock(wardName: string, lines: string[]): Ward {
     itemImages = [];
   };
 
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (!trimmed || trimmed === '&nbsp;') continue;
+  for (const line of lines) {
+    if (!line) continue;
 
     // 1. Check for image URL
-    const imageUrl = extractImageUrl(line);
-    if (imageUrl) {
+    const imgUrl = extractImageUrl(line);
+    if (imgUrl) {
       if (itemName) {
-        // Belongs to current item being built
-        itemImages.push(imageUrl);
+        // Belongs to the item currently being built
+        itemImages.push(imgUrl);
       } else {
         // Attach to last item in current section
-        const list = currentSection.includes('landmark') ? ward.landmarks
-          : currentSection.includes('special') ? ward.specialties : null;
+        const list = currentSection === 'landmarks' ? ward.landmarks
+          : currentSection === 'specialties' ? ward.specialties : null;
         if (list && list.length > 0) {
-          list[list.length - 1].images.push(imageUrl);
+          list[list.length - 1].images.push(imgUrl);
         }
       }
       continue;
     }
 
     // 2. Check for section header
-    const section = parseSectionHeader(line);
+    const section = detectSection(line);
     if (section) {
       flushItem();
-      if (currentSection.includes('description') && descriptionParts.length > 0) {
-        ward.description = descriptionParts.join(' ').trim();
-        descriptionParts = [];
+      if (currentSection === 'description' && descParts.length > 0) {
+        ward.description = descParts.join(' ').trim();
+        descParts = [];
       }
       currentSection = section;
       continue;
     }
 
     // 3. Check for "- name:" line (new item)
-    const name = parseNameLine(line);
-    if (name && (currentSection.includes('landmark') || currentSection.includes('special') || currentSection.includes('merged') || currentSection.includes('from'))) {
+    const name = extractName(line);
+    if (name && (currentSection === 'merged' || currentSection === 'landmarks' || currentSection === 'specialties')) {
       flushItem();
       itemName = name;
       continue;
     }
 
     // 4. Check for "description:" line (belongs to current item)
-    const desc = parseDescriptionLine(line);
+    const desc = extractDescription(line);
     if (desc && itemName) {
       itemDesc = desc;
       continue;
@@ -227,42 +221,43 @@ function parseWardBlock(wardName: string, lines: string[]): Ward {
 
     if (!currentSection) continue;
 
-    // 5. Handle area/population (plain text value)
-    const cleanedLine = stripMarkdown(trimmed);
-
-    if (currentSection.includes('area') && !ward.area) {
-      const areaMatch = cleanedLine.match(/([\d.,]+)\s*km[²2]?/i);
+    // 5. Handle Area (plain numeric text)
+    if (currentSection === 'area' && !ward.area) {
+      const areaMatch = line.match(/([\d.,]+)\s*km[²2]?/i);
       if (areaMatch) {
         ward.area = `${areaMatch[1]} km²`;
       } else {
-        const numMatch = cleanedLine.match(/([\d.,]+)/);
+        const numMatch = line.match(/([\d.,]+)/);
         if (numMatch) ward.area = `${numMatch[1]} km²`;
       }
       continue;
     }
 
-    if (currentSection.includes('population') && !ward.population) {
-      const popMatch = cleanedLine.match(/([\d.,]+)/);
+    // 6. Handle Population (plain numeric text)
+    if (currentSection === 'population' && !ward.population) {
+      const popMatch = line.match(/([\d.,]+)/);
       if (popMatch) ward.population = popMatch[1].replace(/,/g, '');
       continue;
     }
 
-    if (currentSection.includes('description')) {
-      if (cleanedLine) descriptionParts.push(cleanedLine);
+    // 7. Handle Description section (free text)
+    if (currentSection === 'description') {
+      if (line) descParts.push(line);
       continue;
     }
   }
 
+  // Flush final pending item
   flushItem();
-  if (currentSection.includes('description') && descriptionParts.length > 0) {
-    ward.description = descriptionParts.join(' ').trim();
+  if (currentSection === 'description' && descParts.length > 0) {
+    ward.description = descParts.join(' ').trim();
   }
 
   return ward;
 }
 
 /**
- * Parse CSV data for ward information (Area and Population ONLY)
+ * Parse CSV data for ward information (Area and Population enrichment only).
  */
 export function parseCSV(content: string): Map<string, { population: string; area: string }> {
   const lines = content.trim().split('\n');
@@ -312,7 +307,7 @@ function parseCSVLine(line: string): string[] {
 }
 
 /**
- * Build old name index
+ * Build old name to new name index.
  */
 export function buildOldNameIndex(wards: Ward[]): Map<string, string> {
   const index = new Map<string, string>();
