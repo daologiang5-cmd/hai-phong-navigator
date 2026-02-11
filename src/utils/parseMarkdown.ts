@@ -111,7 +111,16 @@ function extractImageUrl(line: string): string | null {
 
   // Pattern: image:URL (with or without space)
   const imageTagMatch = trimmed.match(/^image:\s*(https?:\/\/\S+)/i);
-  if (imageTagMatch) return imageTagMatch[1];
+  if (imageTagMatch) {
+    // Clean backslash-escaped characters from URL (e.g. \& → &, \_ → _)
+    return imageTagMatch[1].replace(/\\([&_=?#])/g, '$1');
+  }
+
+  // Also detect standalone URLs on image: lines
+  const standaloneUrl = trimmed.match(/^(https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp))/i);
+  if (standaloneUrl) {
+    return standaloneUrl[1].replace(/\\([&_=?#])/g, '$1');
+  }
 
   return null;
 }
@@ -121,11 +130,10 @@ function extractImageUrl(line: string): string | null {
  */
 function extractInlineImageUrls(text: string): string[] {
   const urls: string[] = [];
-  // Match URLs ending with image extensions
   const urlRegex = /https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|svg|bmp)/gi;
   let match;
   while ((match = urlRegex.exec(text)) !== null) {
-    urls.push(match[0]);
+    urls.push(match[0].replace(/\\([&_=?#])/g, '$1'));
   }
   return urls;
 }
@@ -208,10 +216,19 @@ function parseWardBlock(wardName: string, lines: string[]): Ward {
 
     if (!trimmed || trimmed === '&nbsp;') continue;
 
-    // Check for image URL line (belongs to current bullet)
+    // Check for image URL line (belongs to current bullet or last flushed item)
     const imageUrl = extractImageUrl(line);
-    if (imageUrl && currentBulletParts.length > 0) {
-      currentBulletImages.push(imageUrl);
+    if (imageUrl) {
+      if (currentBulletParts.length > 0) {
+        currentBulletImages.push(imageUrl);
+      } else {
+        // Attach to last flushed item in current section
+        const targetList = currentSection.includes('landmark') ? ward.landmarks
+          : currentSection.includes('special') ? ward.specialties : null;
+        if (targetList && targetList.length > 0) {
+          targetList[targetList.length - 1].images.push(imageUrl);
+        }
+      }
       continue;
     }
 
