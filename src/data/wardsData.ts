@@ -176,7 +176,7 @@ export function answerQuestion(question: string): string {
     if (targetWard.specialties.length === 0) {
       return `Chưa có dữ liệu chi tiết về đặc sản của ${targetWard.name}.`;
     }
-    return `**Đặc sản của ${targetWard.name}:**\n${targetWard.specialties.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
+    return `**Đặc sản của ${targetWard.name}:**\n${targetWard.specialties.map((s, i) => `${i + 1}. ${s.text}`).join('\n')}`;
   }
   
   if (lowerQuestion.includes('sáp nhập') || lowerQuestion.includes('từ đâu') || lowerQuestion.includes('gộp từ') || lowerQuestion.includes('trước đây')) {
@@ -198,7 +198,7 @@ export function answerQuestion(question: string): string {
     if (targetWard.landmarks.length === 0) {
       return `Chưa có dữ liệu chi tiết về địa điểm nổi bật của ${targetWard.name}.`;
     }
-    return `**Địa điểm nổi bật của ${targetWard.name}:**\n${targetWard.landmarks.map((l, i) => `${i + 1}. ${l}`).join('\n')}`;
+    return `**Địa điểm nổi bật của ${targetWard.name}:**\n${targetWard.landmarks.map((l, i) => `${i + 1}. ${l.text}`).join('\n')}`;
   }
   
   if (lowerQuestion.includes('mô tả') || lowerQuestion.includes('giới thiệu') || lowerQuestion.includes('thông tin')) {

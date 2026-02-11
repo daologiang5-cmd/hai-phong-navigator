@@ -1,7 +1,50 @@
-import { Ward } from '@/types/ward';
+import { Ward, WardItem } from '@/types/ward';
 import { MapPin, Users, Ruler, GitMerge, Landmark, UtensilsCrossed, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useState } from 'react';
+
+function WardItemImage({ url }: { url: string }) {
+  const [error, setError] = useState(false);
+
+  if (error) {
+    return (
+      <p className="text-xs text-muted-foreground italic mt-1">Không tải được hình ảnh.</p>
+    );
+  }
+
+  return (
+    <img
+      src={url}
+      alt=""
+      className="mt-2 w-full max-w-md rounded-md border border-border object-cover"
+      loading="lazy"
+      onError={() => setError(true)}
+    />
+  );
+}
+
+function WardItemList({ items, bulletColor }: { items: WardItem[]; bulletColor: string }) {
+  return (
+    <ul className="space-y-4 pl-1">
+      {items.map((item, index) => (
+        <li key={index} className="text-foreground/90">
+          <div className="flex items-start gap-3">
+            <span className={`${bulletColor} font-bold shrink-0`}>•</span>
+            <span className="leading-relaxed">{item.text}</span>
+          </div>
+          {item.images.length > 0 && (
+            <div className="ml-6 space-y-2">
+              {item.images.map((url, imgIdx) => (
+                <WardItemImage key={imgIdx} url={url} />
+              ))}
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 interface WardDetailsProps {
   ward: Ward | null;
@@ -56,47 +99,33 @@ export function WardDetails({ ward }: WardDetailsProps) {
           )}
         </section>
 
-        {/* Landmarks - FULL LIST, NO TRUNCATION */}
+        {/* Landmarks */}
         <section className="space-y-3">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <Landmark className="h-5 w-5 text-primary" />
             Địa điểm nổi bật {ward.landmarks.length > 0 && `(${ward.landmarks.length})`}
           </h2>
           {ward.landmarks.length > 0 ? (
-            <ul className="space-y-2 pl-1">
-              {ward.landmarks.map((landmark, index) => (
-                <li key={index} className="flex items-start gap-3 text-foreground/90">
-                  <span className="text-primary font-bold shrink-0">•</span>
-                  <span className="leading-relaxed">{landmark}</span>
-                </li>
-              ))}
-            </ul>
+            <WardItemList items={ward.landmarks} bulletColor="text-primary" />
           ) : (
             <p className="text-muted-foreground italic">Chưa có dữ liệu chi tiết.</p>
           )}
         </section>
 
-        {/* Specialties - FULL LIST, NO TRUNCATION */}
+        {/* Specialties */}
         <section className="space-y-3">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <UtensilsCrossed className="h-5 w-5 text-accent" />
             Đặc sản {ward.specialties.length > 0 && `(${ward.specialties.length})`}
           </h2>
           {ward.specialties.length > 0 ? (
-            <ul className="space-y-2 pl-1">
-              {ward.specialties.map((specialty, index) => (
-                <li key={index} className="flex items-start gap-3 text-foreground/90">
-                  <span className="text-accent font-bold shrink-0">•</span>
-                  <span className="leading-relaxed">{specialty}</span>
-                </li>
-              ))}
-            </ul>
+            <WardItemList items={ward.specialties} bulletColor="text-accent" />
           ) : (
             <p className="text-muted-foreground italic">Chưa có dữ liệu chi tiết.</p>
           )}
         </section>
 
-        {/* Description - FULL TEXT, NO TRUNCATION */}
+        {/* Description */}
         <section className="space-y-3">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <FileText className="h-5 w-5 text-muted-foreground" />

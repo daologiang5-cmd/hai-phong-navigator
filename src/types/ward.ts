@@ -1,10 +1,15 @@
+export interface WardItem {
+  text: string;
+  images: string[];
+}
+
 export interface Ward {
   name: string;
   mergedFrom: string[];
   area: string;
   population: string;
-  landmarks: string[];
-  specialties: string[];
+  landmarks: WardItem[];
+  specialties: WardItem[];
   description: string;
 }
 
