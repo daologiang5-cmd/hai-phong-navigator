@@ -26,22 +26,34 @@ function WardItemImage({ url }: { url: string }) {
 
 function WardItemList({ items, bulletColor }: { items: WardItem[]; bulletColor: string }) {
   return (
-    <ul className="space-y-4 pl-1">
-      {items.map((item, index) => (
-        <li key={index} className="text-foreground/90">
-          <div className="flex items-start gap-3">
-            <span className={`${bulletColor} font-bold shrink-0`}>•</span>
-            <span className="leading-relaxed">{item.text}</span>
-          </div>
-          {item.images.length > 0 && (
-            <div className="ml-6 space-y-2">
-              {item.images.map((url, imgIdx) => (
-                <WardItemImage key={imgIdx} url={url} />
-              ))}
+    <ul className="space-y-6 pl-1">
+      {items.map((item, index) => {
+        // Split "name -- description" format
+        const separatorIndex = item.text.indexOf(' -- ');
+        const title = separatorIndex >= 0 ? item.text.slice(0, separatorIndex) : item.text;
+        const description = separatorIndex >= 0 ? item.text.slice(separatorIndex + 4) : '';
+
+        return (
+          <li key={index} className="text-foreground/90">
+            <div className="flex items-start gap-3">
+              <span className={`${bulletColor} font-bold shrink-0`}>•</span>
+              <div>
+                <span className="font-semibold leading-relaxed">{title}</span>
+                {description && (
+                  <p className="mt-1 leading-relaxed text-foreground/80">{description}</p>
+                )}
+              </div>
             </div>
-          )}
-        </li>
-      ))}
+            {item.images.length > 0 && (
+              <div className="ml-6 space-y-2">
+                {item.images.map((url, imgIdx) => (
+                  <WardItemImage key={imgIdx} url={url} />
+                ))}
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

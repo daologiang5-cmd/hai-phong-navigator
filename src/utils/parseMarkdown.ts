@@ -8,61 +8,70 @@ export function normalizeWardName(name: string): string {
 }
 
 /**
- * Clean markdown formatting from text
+ * Strip ALL markdown formatting from a line: **, ##, \#, \-, leading whitespace, etc.
  */
-function cleanText(text: string): string {
+function stripMarkdown(text: string): string {
   return text
-    .replace(/\*\*/g, '')
-    .replace(/\\#/g, '#')
-    .replace(/\\&/g, '&')
-    .replace(/\\/g, '')
-    .replace(/^#+\s*/, '')
+    .replace(/\*\*/g, '')       // bold
+    .replace(/\\([#\-&_=?])/g, '$1') // escaped chars: \# → #, \- → -, etc.
+    .replace(/^#{1,6}\s*/, '')  // leading ### 
     .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 /**
- * Check if a line is a ward header (level 1 heading)
+ * Detect a level-1 ward heading. Returns ward name or null.
+ * Handles: # NAME, \# NAME, ### \# NAME, **# NAME**, ## \# NAME
  */
 function parseWardHeader(line: string): string | null {
-  const trimmed = line.trim();
+  const t = line.trim();
 
-  const escapedHashMatch = trimmed.match(/^#{1,6}\s*\\#\s+([^#\n]+?)\s*$/);
-  if (escapedHashMatch) return cleanText(escapedHashMatch[1]);
+  // Pattern: **# NAME** (bold-wrapped)
+  const boldMatch = t.match(/^\*\*#\s+(.+?)\*\*\s*$/);
+  if (boldMatch) return stripMarkdown(boldMatch[1]);
 
-  const boldHashMatch = trimmed.match(/^\*\*#\s+(.+?)\*\*\s*$/);
-  if (boldHashMatch) return cleanText(boldHashMatch[1]);
+  // Pattern: (optional ###) \# NAME  
+  const escapedMatch = t.match(/^(?:#{1,6}\s*)?\\#\s+(.+?)\s*$/);
+  if (escapedMatch) return stripMarkdown(escapedMatch[1]);
 
-  if (trimmed.match(/^#\s+[^#]/) && !trimmed.startsWith('##')) {
-    const match = trimmed.match(/^#\s+(.+?)\s*$/);
-    if (match) return cleanText(match[1]);
+  // Pattern: bare # NAME (not ## or ###)
+  if (/^#\s+[^#]/.test(t) && !t.startsWith('##')) {
+    const m = t.match(/^#\s+(.+?)\s*$/);
+    if (m) return stripMarkdown(m[1]);
   }
 
   return null;
 }
 
 /**
- * Check if a line is a section header (## Section)
+ * Detect a level-2 section heading. Returns section name (lowercased) or null.
+ * Handles: ## Section, \## Section, ### \## Section, **## Section**
  */
 function parseSectionHeader(line: string): string | null {
-  const trimmed = line.trim();
+  const t = line.trim();
+  const sectionKeywords = ['merged', 'area', 'population', 'landmark', 'special', 'description'];
 
-  const escapedMatch = trimmed.match(/^#{1,6}\s*\\##\s+(.+?)\s*$/);
-  if (escapedMatch) return cleanText(escapedMatch[1]).toLowerCase();
+  // Pattern: **## Section**
+  const boldMatch = t.match(/^\*\*##\s+(.+?)\*\*\s*$/);
+  if (boldMatch) {
+    const s = stripMarkdown(boldMatch[1]).toLowerCase();
+    if (sectionKeywords.some(k => s.includes(k))) return s;
+  }
 
-  const boldMatch = trimmed.match(/^\*\*##\s+(.+?)\*\*\s*$/);
-  if (boldMatch) return cleanText(boldMatch[1]).toLowerCase();
+  // Pattern: (optional ###) \## Section
+  const escapedMatch = t.match(/^(?:#{1,6}\s*)?\\##\s+(.+?)\s*$/);
+  if (escapedMatch) {
+    const s = stripMarkdown(escapedMatch[1]).toLowerCase();
+    if (sectionKeywords.some(k => s.includes(k))) return s;
+  }
 
-  if (trimmed.match(/^##\s+[^#]/) && !trimmed.includes('\\#')) {
-    const match = trimmed.match(/^##\s+(.+?)\s*$/);
-    if (match) {
-      const section = cleanText(match[1]).toLowerCase();
-      if (section.includes('merged') || section.includes('area') ||
-          section.includes('population') || section.includes('landmark') ||
-          section.includes('special') || section.includes('description')) {
-        return section;
-      }
+  // Pattern: bare ## Section (not ###)
+  if (/^##\s+[^#]/.test(t) && !t.startsWith('###')) {
+    const m = t.match(/^##\s+(.+?)\s*$/);
+    if (m) {
+      const s = stripMarkdown(m[1]).toLowerCase();
+      if (sectionKeywords.some(k => s.includes(k))) return s;
     }
   }
 
@@ -70,106 +79,67 @@ function parseSectionHeader(line: string): string | null {
 }
 
 /**
- * Check if a line is a bullet item
- */
-function parseBulletItem(line: string): string | null {
-  const trimmed = line.trim();
-
-  const mdBulletMatch = trimmed.match(/^#{1,6}\s*[·•]\s*(.+?)\s*$/);
-  if (mdBulletMatch) return cleanText(mdBulletMatch[1]);
-
-  const boldBulletMatch = trimmed.match(/^\*\*[·•]\s*(.+?)\*\*\s*$/);
-  if (boldBulletMatch) return cleanText(boldBulletMatch[1]);
-
-  const plainBulletMatch = trimmed.match(/^[·•]\s*(.+?)\s*$/);
-  if (plainBulletMatch) return cleanText(plainBulletMatch[1]);
-
-  if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-    const content = cleanText(trimmed.slice(2));
-    if (content &&
-        !content.toLowerCase().match(/^merged\s+from$/i) &&
-        !content.toLowerCase().match(/^area$/i) &&
-        !content.toLowerCase().match(/^population$/i) &&
-        !content.toLowerCase().match(/^landmarks?$/i) &&
-        !content.toLowerCase().match(/^specialties?$/i) &&
-        !content.toLowerCase().match(/^description$/i)) {
-      return content;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Extract image URL from a line (image:URL or standalone URL pointing to image)
+ * Extract image URL from a line containing image:URL
  */
 function extractImageUrl(line: string): string | null {
-  const trimmed = line.trim()
+  const stripped = line.trim()
     .replace(/\*\*/g, '')
     .replace(/^#{1,6}\s*/, '')
     .trim();
 
-  // Pattern: image:URL (with or without space)
-  const imageTagMatch = trimmed.match(/^image:\s*(https?:\/\/\S+)/i);
-  if (imageTagMatch) {
-    // Clean backslash-escaped characters from URL (e.g. \& → &, \_ → _)
-    return imageTagMatch[1].replace(/\\([&_=?#])/g, '$1');
-  }
-
-  // Also detect standalone URLs on image: lines
-  const standaloneUrl = trimmed.match(/^(https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp))/i);
-  if (standaloneUrl) {
-    return standaloneUrl[1].replace(/\\([&_=?#])/g, '$1');
-  }
+  const m = stripped.match(/^image:\s*(https?:\/\/\S+)/i);
+  if (m) return m[1].replace(/\\([&_=?#])/g, '$1');
 
   return null;
 }
 
 /**
- * Extract image URLs embedded in a text string
+ * Check if a line contains a "- name:" item. Returns the name value or null.
  */
-function extractInlineImageUrls(text: string): string[] {
-  const urls: string[] = [];
-  const urlRegex = /https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|svg|bmp)/gi;
-  let match;
-  while ((match = urlRegex.exec(text)) !== null) {
-    urls.push(match[0].replace(/\\([&_=?#])/g, '$1'));
-  }
-  return urls;
+function parseNameLine(line: string): string | null {
+  const clean = stripMarkdown(line);
+  const m = clean.match(/^-\s*name:\s*(.+)/i);
+  if (m) return m[1].trim();
+  return null;
 }
 
 /**
- * Parse ward data from markdown content with STRICT BOUNDARY ISOLATION
+ * Check if a line contains a "description:" continuation. Returns the description text or null.
+ */
+function parseDescriptionLine(line: string): string | null {
+  const clean = stripMarkdown(line);
+  const m = clean.match(/^\s*description:\s*(.+)/i);
+  if (m) return m[1].trim();
+  return null;
+}
+
+/**
+ * Parse all wards from markdown content with STRICT BOUNDARY ISOLATION.
  */
 export function parseMarkdownWards(content: string): Ward[] {
   const lines = content.split('\n');
   const wards: Ward[] = [];
 
-  const wardBoundaries: { startLine: number; name: string }[] = [];
-
+  // Step 1: Find all ward boundaries
+  const boundaries: { line: number; name: string }[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const wardName = parseWardHeader(lines[i]);
-    if (wardName) {
-      wardBoundaries.push({ startLine: i, name: wardName });
-    }
+    const name = parseWardHeader(lines[i]);
+    if (name) boundaries.push({ line: i, name });
   }
 
-  for (let w = 0; w < wardBoundaries.length; w++) {
-    const startLine = wardBoundaries[w].startLine;
-    const endLine = w + 1 < wardBoundaries.length
-      ? wardBoundaries[w + 1].startLine
-      : lines.length;
-
-    const wardLines = lines.slice(startLine, endLine);
-    const ward = parseWardBlock(wardBoundaries[w].name, wardLines);
-    if (ward) wards.push(ward);
+  // Step 2: Parse each ward block independently
+  for (let w = 0; w < boundaries.length; w++) {
+    const start = boundaries[w].line;
+    const end = w + 1 < boundaries.length ? boundaries[w + 1].line : lines.length;
+    const ward = parseWardBlock(boundaries[w].name, lines.slice(start, end));
+    wards.push(ward);
   }
 
   return wards;
 }
 
 /**
- * Parse a single ward block with image support
+ * Parse a single ward block. Each item has: name, description, image (on separate lines).
  */
 function parseWardBlock(wardName: string, lines: string[]): Ward {
   const ward: Ward = {
@@ -183,92 +153,82 @@ function parseWardBlock(wardName: string, lines: string[]): Ward {
   };
 
   let currentSection = '';
-  let currentBulletParts: string[] = [];
-  let currentBulletImages: string[] = [];
+  // For building current item (name + description + images)
+  let itemName = '';
+  let itemDesc = '';
+  let itemImages: string[] = [];
   let descriptionParts: string[] = [];
 
-  const flushBullet = () => {
-    if (currentBulletParts.length > 0) {
-      const fullText = currentBulletParts.join(' ').trim();
-      if (fullText) {
-        // Also extract inline image URLs from text
-        const inlineImages = extractInlineImageUrls(fullText);
-        const allImages = [...currentBulletImages, ...inlineImages];
+  const flushItem = () => {
+    if (!itemName) return;
+    const fullText = itemDesc ? `${itemName} -- ${itemDesc}` : itemName;
 
-        const item: WardItem = { text: fullText, images: allImages };
-
-        if (currentSection.includes('merged') || currentSection.includes('from')) {
-          ward.mergedFrom.push(fullText);
-        } else if (currentSection.includes('landmark')) {
-          ward.landmarks.push(item);
-        } else if (currentSection.includes('special')) {
-          ward.specialties.push(item);
-        }
-      }
-      currentBulletParts = [];
-      currentBulletImages = [];
+    if (currentSection.includes('merged') || currentSection.includes('from')) {
+      ward.mergedFrom.push(itemName);
+    } else if (currentSection.includes('landmark')) {
+      ward.landmarks.push({ text: fullText, images: [...itemImages] });
+    } else if (currentSection.includes('special')) {
+      ward.specialties.push({ text: fullText, images: [...itemImages] });
     }
+
+    itemName = '';
+    itemDesc = '';
+    itemImages = [];
   };
 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
-
     if (!trimmed || trimmed === '&nbsp;') continue;
 
-    // Check for image URL line (belongs to current bullet or last flushed item)
+    // 1. Check for image URL
     const imageUrl = extractImageUrl(line);
     if (imageUrl) {
-      if (currentBulletParts.length > 0) {
-        currentBulletImages.push(imageUrl);
+      if (itemName) {
+        // Belongs to current item being built
+        itemImages.push(imageUrl);
       } else {
-        // Attach to last flushed item in current section
-        const targetList = currentSection.includes('landmark') ? ward.landmarks
+        // Attach to last item in current section
+        const list = currentSection.includes('landmark') ? ward.landmarks
           : currentSection.includes('special') ? ward.specialties : null;
-        if (targetList && targetList.length > 0) {
-          targetList[targetList.length - 1].images.push(imageUrl);
+        if (list && list.length > 0) {
+          list[list.length - 1].images.push(imageUrl);
         }
       }
       continue;
     }
 
-    const sectionName = parseSectionHeader(line);
-    if (sectionName) {
-      flushBullet();
+    // 2. Check for section header
+    const section = parseSectionHeader(line);
+    if (section) {
+      flushItem();
       if (currentSection.includes('description') && descriptionParts.length > 0) {
         ward.description = descriptionParts.join(' ').trim();
         descriptionParts = [];
       }
-      currentSection = sectionName;
+      currentSection = section;
       continue;
     }
 
-    const bulletContent = parseBulletItem(line);
-    if (bulletContent) {
-      flushBullet();
-      currentBulletParts.push(bulletContent);
+    // 3. Check for "- name:" line (new item)
+    const name = parseNameLine(line);
+    if (name && (currentSection.includes('landmark') || currentSection.includes('special') || currentSection.includes('merged') || currentSection.includes('from'))) {
+      flushItem();
+      itemName = name;
+      continue;
+    }
+
+    // 4. Check for "description:" line (belongs to current item)
+    const desc = parseDescriptionLine(line);
+    if (desc && itemName) {
+      itemDesc = desc;
       continue;
     }
 
     if (!currentSection) continue;
 
-    // Handle "- name:" and "description:" structured format
-    const cleanedLine = cleanText(trimmed);
-
-    // Check for "- name: ..." format (new bullet with name/description structure)
-    const nameMatch = cleanedLine.match(/^-\s*name:\s*(.+)/i);
-    if (nameMatch && (currentSection.includes('landmark') || currentSection.includes('special') || currentSection.includes('merged'))) {
-      flushBullet();
-      currentBulletParts.push(nameMatch[1].trim());
-      continue;
-    }
-
-    // Check for "description: ..." continuation
-    const descMatch = cleanedLine.match(/^\s*description:\s*(.+)/i);
-    if (descMatch && currentBulletParts.length > 0) {
-      currentBulletParts.push('-- ' + descMatch[1].trim());
-      continue;
-    }
+    // 5. Handle area/population (plain text value)
+    const cleanedLine = stripMarkdown(trimmed);
 
     if (currentSection.includes('area') && !ward.area) {
       const areaMatch = cleanedLine.match(/([\d.,]+)\s*km[²2]?/i);
@@ -291,14 +251,9 @@ function parseWardBlock(wardName: string, lines: string[]): Ward {
       if (cleanedLine) descriptionParts.push(cleanedLine);
       continue;
     }
-
-    // Multi-line bullet continuation
-    if (currentBulletParts.length > 0) {
-      if (cleanedLine) currentBulletParts.push(cleanedLine);
-    }
   }
 
-  flushBullet();
+  flushItem();
   if (currentSection.includes('description') && descriptionParts.length > 0) {
     ward.description = descriptionParts.join(' ').trim();
   }
