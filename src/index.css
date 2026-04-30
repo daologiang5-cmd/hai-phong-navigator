@@ -190,3 +190,16 @@
     @apply bg-muted text-foreground rounded-2xl rounded-bl-sm px-4 py-2;
   }
 }
+
+/* Leaflet tooltip + container theming */
+.hp-ward-tooltip {
+  background: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  font-weight: 500;
+  font-size: 0.8rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+.hp-ward-tooltip::before { border-top-color: hsl(var(--border)) !important; }
+.leaflet-container { background: hsl(var(--muted)); }
+.dark .leaflet-container { background: hsl(var(--background)); }
