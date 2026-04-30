@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { WardSidebar } from '@/components/WardSidebar';
 import { WardDetails } from '@/components/WardDetails';
 import { MapDisplay } from '@/components/MapDisplay';
 import { OldNameLookup } from '@/components/OldNameLookup';
 import { Chatbot } from '@/components/Chatbot';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { wards, getWardByName } from '@/data/wardsData';
 import { Ward } from '@/types/ward';
 import { Map } from 'lucide-react';
@@ -36,7 +38,7 @@ const Index = () => {
       {/* Right Main Panel */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Header */}
-        <header className="flex-shrink-0 border-b border-border bg-card px-6 py-4">
+        <header className="flex-shrink-0 border-b border-border bg-card/80 backdrop-blur px-6 py-4">
           <div className="flex items-center gap-3">
             <Map className="h-8 w-8 text-primary" />
             <div>
@@ -57,15 +59,30 @@ const Index = () => {
             <OldNameLookup onWardFound={handleWardFound} />
 
             {/* Map Display */}
-            <MapDisplay />
+            <MapDisplay
+              selectedWard={selectedWard}
+              onSelectWard={(w) => setSelectedWard(w)}
+            />
 
-            {/* Ward Details or Empty State */}
-            <div className="bg-card rounded-lg border border-border min-h-[400px]">
-              <WardDetails ward={selectedWard} />
-            </div>
+            {/* Ward Details with glassmorphism + entrance animation */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={selectedWard?.name ?? 'empty'}
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                className="bg-card/70 backdrop-blur-xl rounded-xl border border-border min-h-[400px] shadow-xl"
+              >
+                <WardDetails ward={selectedWard} />
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </main>
+
+      {/* Floating theme toggle */}
+      <ThemeToggle />
 
       {/* Chatbot */}
       <Chatbot />
