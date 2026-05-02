@@ -18,7 +18,7 @@ export function ThemeToggle() {
       whileTap={{ scale: 0.92 }}
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       aria-label="Toggle theme"
-      className="fixed top-4 right-4 z-50 h-11 w-11 rounded-full backdrop-blur-xl bg-card/60 border border-border shadow-lg flex items-center justify-center text-foreground hover:bg-card/80 transition-colors"
+      className="fixed top-3 right-3 sm:top-4 sm:right-4 z-50 h-10 w-10 sm:h-11 sm:w-11 rounded-full backdrop-blur-xl bg-card/60 border border-border shadow-lg flex items-center justify-center text-foreground hover:bg-card/80 transition-colors"
     >
       <AnimatePresence mode="wait" initial={false}>
         {isDark ? (

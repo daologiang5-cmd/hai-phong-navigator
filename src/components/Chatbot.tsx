@@ -79,7 +79,7 @@ export function Chatbot() {
       {/* Chat Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center"
       >
         {isOpen ? (
           <X className="h-6 w-6" />
@@ -90,7 +90,7 @@ export function Chatbot() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-96 max-w-[calc(100vw-3rem)] h-[500px] max-h-[calc(100vh-8rem)] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed bottom-20 sm:bottom-24 right-3 sm:right-6 left-3 sm:left-auto z-50 sm:w-96 sm:max-w-[calc(100vw-3rem)] h-[70vh] sm:h-[500px] max-h-[calc(100vh-7rem)] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
           <div className="map-header px-4 py-3 flex items-center gap-3">
             <Bot className="h-6 w-6" />
