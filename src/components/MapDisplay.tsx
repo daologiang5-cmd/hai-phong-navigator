@@ -171,11 +171,11 @@ export function MapDisplay({ selectedWard, onSelectWard }: MapDisplayProps) {
       transition={{ duration: 0.5, ease: 'easeOut' }}
       className="relative w-full overflow-hidden rounded-xl border border-border bg-card/70 backdrop-blur-md shadow-lg"
     >
-      <div className="map-header px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-lg font-semibold whitespace-nowrap">
+      <div className="map-header px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 flex-wrap">
+        <h2 className="text-base sm:text-lg font-semibold whitespace-nowrap">
           Bản đồ Hành chính Hải Phòng
         </h2>
-        <div className="relative flex-1 min-w-[220px] max-w-md">
+        <div className="relative flex-1 min-w-[160px] max-w-md w-full sm:w-auto">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <input
             type="text"
@@ -218,7 +218,7 @@ export function MapDisplay({ selectedWard, onSelectWard }: MapDisplayProps) {
         </div>
       </div>
 
-      <div className="relative h-[520px] w-full">
+      <div className="relative h-[60vh] min-h-[340px] sm:h-[520px] w-full">
         <MapContainer
           center={HP_CENTER}
           zoom={HP_ZOOM}

@@ -8,13 +8,18 @@ import { Chatbot } from '@/components/Chatbot';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { wards, getWardByName } from '@/data/wardsData';
 import { Ward } from '@/types/ward';
-import { Map } from 'lucide-react';
+import { Map, Menu } from 'lucide-react';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const Index = () => {
   const [selectedWard, setSelectedWard] = useState<Ward | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const handleSelectWard = useCallback((ward: Ward) => {
     setSelectedWard(ward);
+    setSidebarOpen(false);
   }, []);
 
   const handleWardFound = useCallback((wardName: string) => {
@@ -26,26 +31,44 @@ const Index = () => {
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
-      {/* Left Sidebar - Fixed width, independently scrollable */}
-      <aside className="w-80 flex-shrink-0 h-full border-r border-border">
-        <WardSidebar
-          wards={wards}
-          selectedWard={selectedWard}
-          onSelectWard={handleSelectWard}
-        />
-      </aside>
+      {/* Left Sidebar - desktop only */}
+      {!isMobile && (
+        <aside className="w-80 flex-shrink-0 h-full border-r border-border">
+          <WardSidebar
+            wards={wards}
+            selectedWard={selectedWard}
+            onSelectWard={handleSelectWard}
+          />
+        </aside>
+      )}
+
+      {/* Mobile sidebar (Sheet) */}
+      {isMobile && (
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side="left" className="p-0 w-[85vw] max-w-sm">
+            <WardSidebar
+              wards={wards}
+              selectedWard={selectedWard}
+              onSelectWard={handleSelectWard}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Right Main Panel */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Header */}
-        <header className="flex-shrink-0 border-b border-border bg-card/80 backdrop-blur px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Map className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">
+        <header className="flex-shrink-0 border-b border-border bg-card/80 backdrop-blur px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center gap-2 sm:gap-3 pr-12">
+            {isMobile && (
+              <SheetTriggerButton onClick={() => setSidebarOpen(true)} />
+            )}
+            <Map className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-2xl font-bold text-foreground leading-tight truncate">
                 Bản đồ Hành chính Hải Phòng
               </h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="hidden sm:block text-sm text-muted-foreground">
                 Tra cứu thông tin phường/xã sau sáp nhập
               </p>
             </div>
@@ -54,7 +77,7 @@ const Index = () => {
 
         {/* Content Area - Scrollable */}
         <div className="flex-1 overflow-auto">
-          <div className="p-6 space-y-6 max-w-5xl mx-auto">
+          <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-5xl mx-auto">
             {/* OLD NAME LOOKUP - TOP (above the map) */}
             <OldNameLookup onWardFound={handleWardFound} />
 
@@ -89,5 +112,17 @@ const Index = () => {
     </div>
   );
 };
+
+function SheetTriggerButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label="Mở danh sách phường/xã"
+      className="h-9 w-9 rounded-md border border-border bg-card flex items-center justify-center text-foreground hover:bg-accent flex-shrink-0"
+    >
+      <Menu className="h-5 w-5" />
+    </button>
+  );
+}
 
 export default Index;
