@@ -2,8 +2,8 @@ import { Ward } from '@/types/ward';
 import { wards } from './wardsData';
 
 /* =========================================================================
- * Intelligent Knowledge-Based Assistant for Hai Phong wards
- * Pure data-driven NLU: no hardcoded if/else for individual wards.
+ * Concise Knowledge-Based Assistant for Hai Phong wards
+ * Returns DIRECT, SHORT answers based strictly on .md data.
  * ========================================================================= */
 
 const NO_DATA =
@@ -26,12 +26,13 @@ function tokens(s: string): string[] {
 }
 
 const STOP = new Set([
-  'la','co','cua','o','va','hay','thi','nao','gi','nhung','nhung','cho','toi','minh','ban',
-  'phuong','xa','thi','tran','don','vi','hanh','chinh','moi','cu','truoc','day','gio','hien',
-  'nay','nay','con','duoc','khong','de','vao','ra','ben','nho','thuoc','muon','biet','ve',
-  'thong','tin','giup','noi','hoi','kham','pha','tham','quan','an','uong','di','den','tu',
-  'tai','sao','nhu','the','rat','cu','the','cac','mot','hai','ba','con','sap','nhap',
-  'sau','khi','bay','gio','that','ra','dau','dau','do','nay','kia','ay'
+  'la','co','cua','o','va','hay','thi','nao','gi','nhung','cho','toi','minh','ban',
+  'phuong','xa','tran','don','vi','hanh','chinh','moi','cu','truoc','day','gio','hien',
+  'nay','con','duoc','khong','de','vao','ra','ben','nho','thuoc','muon','biet','ve',
+  'thong','tin','giup','noi','hoi','kham','pha','tham','quan','di','den','tu',
+  'tai','sao','nhu','the','rat','cac','mot','hai','ba','sap','nhap',
+  'sau','khi','bay','that','dau','do','kia','ay','ngon','an','uong','choi','xem',
+  'leo','tim','muon','dau'
 ]);
 
 function keywords(q: string): string[] {
@@ -47,7 +48,7 @@ function parseArea(s: string): number {
   return m ? parseFloat(m[0]) : 0;
 }
 
-/* ---------- Index by name ---------- */
+/* ---------- Ward lookups ---------- */
 function findWardByName(q: string): Ward | undefined {
   const ql = ' ' + strip(q) + ' ';
   return wards
@@ -70,43 +71,36 @@ function findWardsByOldName(q: string): { ward: Ward; oldName: string }[] {
   return out;
 }
 
-/* ---------- Free-text scan across landmarks/specialties/description ---------- */
+/* ---------- Topic scan: only entries containing ALL keywords ---------- */
 interface Hit {
   ward: Ward;
   field: 'landmark' | 'specialty' | 'description';
   text: string;
-  score: number;
 }
 
 function scanCorpus(kws: string[]): Hit[] {
   if (!kws.length) return [];
   const hits: Hit[] = [];
+  const matchAll = (norm: string) => kws.every((k) => norm.includes(k));
   for (const w of wards) {
     for (const l of w.landmarks) {
-      const norm = strip(l.text);
-      const score = kws.reduce((a, k) => a + (norm.includes(k) ? 1 : 0), 0);
-      if (score) hits.push({ ward: w, field: 'landmark', text: l.text, score });
+      if (matchAll(strip(l.text))) hits.push({ ward: w, field: 'landmark', text: l.text });
     }
     for (const s of w.specialties) {
-      const norm = strip(s.text);
-      const score = kws.reduce((a, k) => a + (norm.includes(k) ? 1 : 0), 0);
-      if (score) hits.push({ ward: w, field: 'specialty', text: s.text, score });
+      if (matchAll(strip(s.text))) hits.push({ ward: w, field: 'specialty', text: s.text });
     }
-    if (w.description) {
-      const norm = strip(w.description);
-      const score = kws.reduce((a, k) => a + (norm.includes(k) ? 1 : 0), 0);
-      if (score) hits.push({ ward: w, field: 'description', text: w.description, score });
+    if (w.description && matchAll(strip(w.description))) {
+      hits.push({ ward: w, field: 'description', text: w.description });
     }
   }
-  return hits.sort((a, b) => b.score - a.score);
+  return hits;
 }
 
-/* ---------- Formatters ---------- */
+/* ---------- Detail summary (only on explicit request) ---------- */
 function summarize(w: Ward): string {
   const parts: string[] = [];
   parts.push(`**${w.name}**`);
-  if (w.mergedFrom.length)
-    parts.push(`*Hình thành từ:* ${w.mergedFrom.join(', ')}.`);
+  if (w.mergedFrom.length) parts.push(`*Hình thành từ:* ${w.mergedFrom.join(', ')}.`);
   parts.push(`*Diện tích:* ${w.area} · *Dân số:* ${w.population} người.`);
   if (w.landmarks.length) {
     parts.push(`\n**Điểm đến nổi bật:**`);
@@ -120,61 +114,36 @@ function summarize(w: Ward): string {
   return parts.join('\n');
 }
 
-/* ---------- Intent handlers ---------- */
+/* ---------- Superlatives & comparison (kept, concise) ---------- */
 function handleSuperlative(ql: string): string | null {
-  // dân số
   if (/(dan so|dong dan|nhieu dan|it dan)/.test(ql)) {
     const sorted = [...wards].sort((a, b) => parseNumber(b.population) - parseNumber(a.population));
     if (/it dan|it nhat|thap nhat/.test(ql)) {
       const w = sorted[sorted.length - 1];
-      return `Đơn vị có **dân số thấp nhất** là **${w.name}** với khoảng **${w.population}** người.`;
+      return `Đơn vị có **dân số thấp nhất**: **${w.name}** (~${w.population} người).`;
     }
     const w = sorted[0];
-    return `Đơn vị có **dân số đông nhất** là **${w.name}** với khoảng **${w.population}** người. Tiếp theo là ${sorted
-      .slice(1, 4)
-      .map((x) => `${x.name} (${x.population})`)
-      .join(', ')}.`;
+    return `Đơn vị có **dân số đông nhất**: **${w.name}** (~${w.population} người).`;
   }
-  // diện tích
   if (/(dien tich|rong nhat|lon nhat|nho nhat|be nhat)/.test(ql)) {
     const sorted = [...wards].sort((a, b) => parseArea(b.area) - parseArea(a.area));
     if (/nho nhat|be nhat|hep nhat/.test(ql)) {
       const w = sorted.filter((x) => parseArea(x.area) > 0).pop()!;
-      return `Đơn vị có **diện tích nhỏ nhất** là **${w.name}** với **${w.area}**.`;
+      return `Đơn vị có **diện tích nhỏ nhất**: **${w.name}** (${w.area}).`;
     }
     const w = sorted[0];
-    return `Đơn vị có **diện tích lớn nhất** là **${w.name}** (${w.area}). Tiếp theo: ${sorted
-      .slice(1, 4)
-      .map((x) => `${x.name} (${x.area})`)
-      .join(', ')}.`;
-  }
-  // nhiều đặc sản / điểm đến nhất
-  if (/(nhieu dac san|nhieu mon|nhieu am thuc)/.test(ql)) {
-    const sorted = [...wards].sort((a, b) => b.specialties.length - a.specialties.length);
-    const top = sorted.slice(0, 3);
-    return `Các phường/xã có **nhiều đặc sản nhất**:\n${top
-      .map((w, i) => `${i + 1}. **${w.name}** — ${w.specialties.length} đặc sản`)
-      .join('\n')}`;
-  }
-  if (/(nhieu diem den|nhieu danh lam|nhieu di tich|nhieu cho choi)/.test(ql)) {
-    const sorted = [...wards].sort((a, b) => b.landmarks.length - a.landmarks.length);
-    const top = sorted.slice(0, 3);
-    return `Các phường/xã có **nhiều điểm đến nhất**:\n${top
-      .map((w, i) => `${i + 1}. **${w.name}** — ${w.landmarks.length} địa điểm`)
-      .join('\n')}`;
+    return `Đơn vị có **diện tích lớn nhất**: **${w.name}** (${w.area}).`;
   }
   return null;
 }
 
 function handleComparison(q: string): string | null {
   const ql = strip(q);
-  if (!/so sanh|hon|kem|giua|va|vs/.test(ql)) return null;
-  // Find 2 ward names mentioned
+  if (!/so sanh|hon|kem|giua|vs/.test(ql)) return null;
   const found = wards
     .map((w) => ({ w, idx: ql.indexOf(strip(w.name)) }))
     .filter((x) => x.idx >= 0)
     .sort((a, b) => b.w.name.length - a.w.name.length);
-  // Dedup overlapping (keep longest first, exclude if name contained in already-picked range)
   const picked: Ward[] = [];
   const usedRanges: [number, number][] = [];
   for (const f of found) {
@@ -187,43 +156,32 @@ function handleComparison(q: string): string | null {
   }
   if (picked.length < 2) return null;
   const [a, b] = picked;
-  const aPop = parseNumber(a.population);
-  const bPop = parseNumber(b.population);
-  const aArea = parseArea(a.area);
-  const bArea = parseArea(b.area);
-  const lines: string[] = [];
-  lines.push(`**So sánh ${a.name} và ${b.name}:**`);
-  lines.push(`- Dân số: ${a.name} ${a.population} người · ${b.name} ${b.population} người ${
-    aPop && bPop ? `→ ${aPop > bPop ? a.name : b.name} đông hơn (~${Math.abs(aPop - bPop).toLocaleString('vi-VN')} người)` : ''
-  }`);
-  lines.push(`- Diện tích: ${a.name} ${a.area} · ${b.name} ${b.area} ${
-    aArea && bArea ? `→ ${aArea > bArea ? a.name : b.name} rộng hơn` : ''
-  }`);
-  lines.push(`- Điểm đến / Đặc sản: ${a.name} ${a.landmarks.length}/${a.specialties.length} · ${b.name} ${b.landmarks.length}/${b.specialties.length}`);
-  return lines.join('\n');
+  return [
+    `**So sánh ${a.name} và ${b.name}:**`,
+    `- Dân số: ${a.population} vs ${b.population}`,
+    `- Diện tích: ${a.area} vs ${b.area}`,
+  ].join('\n');
 }
 
+/* ---------- Field-specific (when ward + topic combined) ---------- */
 function handleSpecificField(w: Ward, ql: string): string | null {
-  if (/(dac san|mon an|am thuc|an gi|do an|thuc an)/.test(ql)) {
+  if (/(dac san|mon an|am thuc|do an|thuc an)/.test(ql)) {
     if (!w.specialties.length) return NO_DATA;
     return `**Đặc sản của ${w.name}:**\n${w.specialties.map((s) => `- ${s.text}`).join('\n')}`;
   }
-  if (/(diem den|dia diem|danh lam|di tich|tham quan|du lich|choi gi|xem gi|canh dep|noi)/.test(ql)) {
+  if (/(diem den|dia diem|danh lam|di tich|tham quan|du lich|canh dep)/.test(ql)) {
     if (!w.landmarks.length) return NO_DATA;
     return `**Điểm đến tại ${w.name}:**\n${w.landmarks.map((l) => `- ${l.text}`).join('\n')}`;
   }
-  if (/(sap nhap|nguon goc|gop tu|hop tu|truoc day|von la|tu nhung|gom)/.test(ql)) {
+  if (/(sap nhap|nguon goc|gop tu|hop tu|von la|gom)/.test(ql)) {
     if (!w.mergedFrom.length) return NO_DATA;
     return `**${w.name}** được hình thành từ: ${w.mergedFrom.join(', ')}.`;
   }
-  if (/(dan so|bao nhieu nguoi|so dan|nguoi dan)/.test(ql)) {
-    return `**Dân số ${w.name}** khoảng **${w.population}** người.`;
+  if (/(dan so|bao nhieu nguoi|so dan)/.test(ql)) {
+    return `Dân số **${w.name}**: ~**${w.population}** người.`;
   }
-  if (/(dien tich|rong|km|bao nhieu km)/.test(ql)) {
-    return `**Diện tích ${w.name}** là **${w.area}**.`;
-  }
-  if (/(mo ta|gioi thieu|noi gi ve|the nao|ra sao)/.test(ql)) {
-    return w.description ? `**${w.name}** — ${w.description}` : summarize(w);
+  if (/(dien tich|km)/.test(ql)) {
+    return `Diện tích **${w.name}**: **${w.area}**.`;
   }
   return null;
 }
@@ -233,83 +191,73 @@ export interface AssistantContext {
   selectedWard: Ward | null;
 }
 
+const DETAIL_RE = /(thong tin chi tiet|chi tiet ve|gioi thieu ve|tat ca thong tin|toan bo thong tin)/;
+
 export function smartAnswer(question: string, ctx: AssistantContext): string {
   const q = question.trim();
   if (!q) return NO_DATA;
   const ql = strip(q);
 
-  // Greetings
   if (/^(chao|hi|hello|xin chao|alo|hey)\b/.test(ql)) {
-    return 'Chào bạn! Tôi là trợ lý tra cứu hành chính Hải Phòng sau sáp nhập 2025. Bạn có thể hỏi về 114 phường/xã mới: lịch sử sáp nhập, đặc sản, điểm đến, dân số, diện tích, hoặc so sánh giữa các đơn vị.';
+    return 'Chào bạn! Hỏi tôi về 114 phường/xã Hải Phòng sau sáp nhập 2025: đặc sản, điểm đến, tên cũ, dân số, diện tích.';
   }
 
-  // 1. Superlatives
   const sup = handleSuperlative(ql);
   if (sup) return sup;
 
-  // 2. Comparisons (need ≥2 wards in question)
   const cmp = handleComparison(q);
   if (cmp) return cmp;
 
-  // 3. Reverse lookup (old name → new ward)
   const oldHits = findWardsByOldName(q);
-
-  // 4. Find an explicit new ward name in the question
   let target = findWardByName(q);
 
-  // 5. Context awareness: pronouns like "đây", "ở đó", "nơi này"
-  const pronoun = /\b(day|do|noi nay|cho nay|cho do|chỗ nay|o day|o do)\b/.test(ql) ||
-                  // OR question without any ward mention but ctx.selectedWard exists
-                  (!target && oldHits.length === 0);
-  if (!target && pronoun && ctx.selectedWard) {
-    target = ctx.selectedWard;
-  }
+  // Pronoun → use selected ward on map
+  const pronoun = /\b(day|do|noi nay|cho nay|cho do|o day|o do)\b/.test(ql);
+  if (!target && pronoun && ctx.selectedWard) target = ctx.selectedWard;
 
-  // 6. If reverse-lookup found a unique old → new mapping, prefer connecting to that new ward
+  // Reverse lookup (old commune → new ward) — DIRECT, short
   if (!target && oldHits.length) {
     const uniq = Array.from(
       new Map(oldHits.map((o) => [o.ward.name + '|' + o.oldName, o])).values()
     );
     if (uniq.length === 1) {
-      const w = uniq[0].ward;
-      // If the user asked for more than just "where is X now", give a rich combined answer
+      const { ward: w, oldName } = uniq[0];
       const fieldAns = handleSpecificField(w, ql);
-      const intro = `**${uniq[0].oldName}** nay thuộc **${w.name}**.`;
+      const intro = `**${oldName}** hiện nay đã sáp nhập vào **${w.name}**.`;
       if (fieldAns) return `${intro}\n\n${fieldAns}`;
-      // If question hints at "có gì hay / thế nào / giới thiệu"
-      if (/(co gi|hay|the nao|ra sao|gioi thieu|kham pha|tham quan|an gi|choi gi)/.test(ql)) {
-        return `${intro}\n\n${summarize(w)}`;
-      }
+      if (DETAIL_RE.test(ql)) return `${intro}\n\n${summarize(w)}`;
       return intro;
     }
-    const lines = uniq.map((o) => `- **${o.oldName}** → **${o.ward.name}**`);
-    return `Có nhiều kết quả khớp với tên cũ bạn hỏi:\n${lines.join('\n')}`;
+    return `Có nhiều kết quả khớp với tên cũ:\n${uniq.map((o) => `- **${o.oldName}** → **${o.ward.name}**`).join('\n')}`;
   }
 
-  // 7. Specific field on a known target ward
+  // Known target ward
   if (target) {
     const ans = handleSpecificField(target, ql);
     if (ans) return ans;
-    return summarize(target);
+    if (DETAIL_RE.test(ql)) return summarize(target);
+    return `**${target.name}** — Diện tích ${target.area}, dân số ${target.population} người. Hỏi cụ thể về *đặc sản*, *điểm đến*, *nguồn gốc sáp nhập*, hoặc gõ "thông tin chi tiết về ${target.name}".`;
   }
 
-  // 8. Free-text scan across landmarks/specialties/description
+  // Free-text topic scan: only entries containing ALL keywords
   const kws = keywords(q);
   const hits = scanCorpus(kws);
   if (hits.length) {
-    // Group by ward, show top 6 unique results
+    const ranked = [...hits].sort((a, b) => {
+      const w = (f: Hit['field']) => (f === 'description' ? 0 : 1);
+      return w(b.field) - w(a.field);
+    });
     const seen = new Set<string>();
     const lines: string[] = [];
-    for (const h of hits) {
+    for (const h of ranked) {
       const key = h.ward.name + '|' + h.text;
       if (seen.has(key)) continue;
       seen.add(key);
-      const tag =
-        h.field === 'landmark' ? 'Điểm đến' : h.field === 'specialty' ? 'Đặc sản' : 'Mô tả';
-      lines.push(`- *${tag}* — **${h.ward.name}**: ${h.text}`);
-      if (lines.length >= 6) break;
+      lines.push(`- ${h.text} — **${h.ward.name}**`);
+      if (lines.length >= 4) break;
     }
-    return `Tôi tìm thấy ${hits.length} kết quả liên quan trong dữ liệu sáp nhập:\n${lines.join('\n')}`;
+    const topic = q.replace(/\?+$/, '').trim();
+    return `Liên quan đến "${topic}":\n${lines.join('\n')}`;
   }
 
   return NO_DATA;
