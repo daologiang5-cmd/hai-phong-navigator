@@ -3,7 +3,8 @@ import { MessageCircle, Send, X, Bot, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { answerQuestion } from '@/data/wardsData';
+import { smartAnswer } from '@/data/wardAssistant';
+import { Ward } from '@/types/ward';
 
 interface Message {
   id: number;
@@ -11,7 +12,11 @@ interface Message {
   isBot: boolean;
 }
 
-export function Chatbot() {
+interface ChatbotProps {
+  selectedWard?: Ward | null;
+}
+
+export function Chatbot({ selectedWard = null }: ChatbotProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -42,8 +47,9 @@ export function Chatbot() {
     setInput('');
 
     // Get answer from data
+    const currentInput = input;
     setTimeout(() => {
-      const answer = answerQuestion(input);
+      const answer = smartAnswer(currentInput, { selectedWard });
       const botMessage: Message = {
         id: Date.now() + 1,
         text: answer,

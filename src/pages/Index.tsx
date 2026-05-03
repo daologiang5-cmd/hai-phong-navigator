@@ -108,7 +108,7 @@ const Index = () => {
       <ThemeToggle />
 
       {/* Chatbot */}
-      <Chatbot />
+      <Chatbot selectedWard={selectedWard} />
     </div>
   );
 };
