@@ -138,88 +138,175 @@ export function lookupOldWardName(oldName: string): string | null {
   return null;
 }
 
+const NO_DATA_MSG =
+  'Hiện tại dữ liệu chính thức về khu vực này chưa được cập nhật trong tài liệu sáp nhập. Bạn có thể kiểm tra trực tiếp trên bản đồ.';
+
+function stripDiacritics(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function formatWardSummary(w: Ward): string {
+  const lines: string[] = [];
+  lines.push(`**Phường/Xã ${w.name}**`);
+  if (w.mergedFrom.length) {
+    lines.push(`\n**Nguồn gốc:** ${w.mergedFrom.join(', ')}`);
+  }
+  lines.push(`\n**Thông số:** Diện tích ${w.area} · Dân số ${w.population} người`);
+  if (w.landmarks.length) {
+    lines.push(`\n**Điểm đến:**`);
+    w.landmarks.forEach((l) => lines.push(`- ${l.text}`));
+  }
+  if (w.specialties.length) {
+    lines.push(`\n**Đặc sản:**`);
+    w.specialties.forEach((s) => lines.push(`- ${s.text}`));
+  }
+  if (w.description) {
+    lines.push(`\n**Mô tả ngắn:** ${w.description}`);
+  }
+  return lines.join('\n');
+}
+
+function findWardByNewName(q: string): Ward | undefined {
+  const ql = stripDiacritics(q);
+  // Prefer longest exact-name match contained in question
+  const matches = wards
+    .filter((w) => ql.includes(stripDiacritics(w.name)))
+    .sort((a, b) => b.name.length - a.name.length);
+  return matches[0];
+}
+
+function findWardsByOldName(q: string): { ward: Ward; oldName: string }[] {
+  const ql = stripDiacritics(q);
+  const results: { ward: Ward; oldName: string }[] = [];
+  for (const w of wards) {
+    for (const oldName of w.mergedFrom) {
+      const clean = oldName.replace(/\s*\([^)]*\)/g, '').trim();
+      if (!clean) continue;
+      const cleanNorm = stripDiacritics(clean);
+      // Match on full word ("xã hồng phong" or just "hồng phong")
+      if (ql.includes(cleanNorm) && cleanNorm.length >= 3) {
+        results.push({ ward: w, oldName: clean });
+      }
+    }
+  }
+  return results;
+}
+
+function findByLandmarkOrSpecialty(
+  q: string
+): { ward: Ward; type: 'landmark' | 'specialty'; text: string }[] {
+  const ql = stripDiacritics(q);
+  const out: { ward: Ward; type: 'landmark' | 'specialty'; text: string }[] = [];
+  // Extract candidate noun phrases by removing common question words
+  const cleaned = ql
+    .replace(/\b(thuoc|phuong|xa|nao|o dau|gio|hien nay|la|gi|co|nao|tim|cho|toi|biet|ve|nay)\b/g, ' ')
+    .replace(/[?.!,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return out;
+  for (const w of wards) {
+    for (const l of w.landmarks) {
+      const name = l.text.split('--')[0].trim();
+      const norm = stripDiacritics(name);
+      if (norm.length >= 3 && cleaned.includes(norm)) {
+        out.push({ ward: w, type: 'landmark', text: l.text });
+      }
+    }
+    for (const s of w.specialties) {
+      const name = s.text.split('--')[0].trim();
+      const norm = stripDiacritics(name);
+      if (norm.length >= 3 && cleaned.includes(norm)) {
+        out.push({ ward: w, type: 'specialty', text: s.text });
+      }
+    }
+  }
+  return out;
+}
+
 // Answer chatbot questions based on ward data ONLY - NO hallucination
 export function answerQuestion(question: string): string {
-  const lowerQuestion = question.toLowerCase();
-  
-  // Extract ward name from question
-  let targetWard: Ward | undefined;
-  
-  // First try exact matches for ward names
-  for (const ward of wards) {
-    if (lowerQuestion.includes(ward.name.toLowerCase())) {
-      targetWard = ward;
-      break;
-    }
+  const q = question.trim();
+  if (!q) return NO_DATA_MSG;
+
+  const ql = stripDiacritics(q);
+
+  // 0. Greetings
+  if (/^(chao|hi|hello|xin chao)\b/.test(ql)) {
+    return 'Chào bạn, tôi là trợ lý bản đồ Hải Phòng. Tôi có thể giúp bạn tra cứu thông tin về 114 phường xã mới sau sáp nhập.';
   }
-  
-  // If not found, try old names
-  if (!targetWard) {
-    for (const ward of wards) {
-      for (const oldName of ward.mergedFrom) {
-        const cleanName = oldName.replace(/\s*\([^)]*\)/g, '').trim();
-        if (lowerQuestion.includes(cleanName.toLowerCase())) {
-          targetWard = ward;
-          break;
-        }
+
+  // 1. Reverse lookup intent (old → new)
+  const reverseIntent =
+    /\b(gio o dau|hien nay|truoc day|sap nhap vao|thuoc phuong|thuoc xa|thuoc don vi)\b/.test(ql) ||
+    /^xa\s+/.test(ql);
+  if (reverseIntent) {
+    const old = findWardsByOldName(q);
+    if (old.length) {
+      const uniq = Array.from(new Map(old.map((o) => [o.ward.name + '|' + o.oldName, o])).values());
+      if (uniq.length === 1) {
+        return `**${uniq[0].oldName}** hiện nay đã sáp nhập vào **${uniq[0].ward.name}**.`;
       }
-      if (targetWard) break;
+      const lines = uniq.map((o) => `- **${o.oldName}** → **${o.ward.name}**`);
+      return `Kết quả tra cứu sáp nhập:\n${lines.join('\n')}`;
     }
   }
-  
-  if (!targetWard) {
-    return 'Dữ liệu hiện không có trong hệ thống. Vui lòng nhập tên phường/xã cụ thể để tra cứu.';
-  }
-  
-  // Determine what information is being asked
-  if (lowerQuestion.includes('đặc sản') || lowerQuestion.includes('món ăn') || lowerQuestion.includes('ẩm thực')) {
-    if (targetWard.specialties.length === 0) {
-      return `Chưa có dữ liệu chi tiết về đặc sản của ${targetWard.name}.`;
+
+  // 2. New ward lookup → full structured summary
+  const targetWard = findWardByNewName(q);
+  if (targetWard) {
+    // Specific sub-questions
+    if (/(dac san|mon an|am thuc|an gi)/.test(ql)) {
+      if (!targetWard.specialties.length) return NO_DATA_MSG;
+      return (
+        `**Đặc sản của ${targetWard.name}:**\n` +
+        targetWard.specialties.map((s) => `- ${s.text}`).join('\n')
+      );
     }
-    return `**Đặc sản của ${targetWard.name}:**\n${targetWard.specialties.map((s, i) => `${i + 1}. ${s.text}`).join('\n')}`;
-  }
-  
-  if (lowerQuestion.includes('sáp nhập') || lowerQuestion.includes('từ đâu') || lowerQuestion.includes('gộp từ') || lowerQuestion.includes('trước đây')) {
-    if (targetWard.mergedFrom.length === 0) {
-      return `Chưa có dữ liệu chi tiết về nguồn gốc sáp nhập của ${targetWard.name}.`;
+    if (/(diem den|dia diem|danh lam|di tich|tham quan|du lich|choi gi|xem gi)/.test(ql)) {
+      if (!targetWard.landmarks.length) return NO_DATA_MSG;
+      return (
+        `**Điểm đến tại ${targetWard.name}:**\n` +
+        targetWard.landmarks.map((l) => `- ${l.text}`).join('\n')
+      );
     }
-    return `**${targetWard.name} được sáp nhập từ:**\n${targetWard.mergedFrom.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
-  }
-  
-  if (lowerQuestion.includes('dân số') || lowerQuestion.includes('bao nhiêu người') || lowerQuestion.includes('số dân')) {
-    return `**Dân số của ${targetWard.name}:** ${targetWard.population} người`;
-  }
-  
-  if (lowerQuestion.includes('diện tích') || lowerQuestion.includes('rộng') || lowerQuestion.includes('km')) {
-    return `**Diện tích của ${targetWard.name}:** ${targetWard.area}`;
-  }
-  
-  if (lowerQuestion.includes('địa điểm') || lowerQuestion.includes('danh lam') || lowerQuestion.includes('di tích') || lowerQuestion.includes('tham quan') || lowerQuestion.includes('du lịch')) {
-    if (targetWard.landmarks.length === 0) {
-      return `Chưa có dữ liệu chi tiết về địa điểm nổi bật của ${targetWard.name}.`;
+    if (/(sap nhap|nguon goc|gop tu|truoc day)/.test(ql)) {
+      if (!targetWard.mergedFrom.length) return NO_DATA_MSG;
+      return (
+        `**${targetWard.name} được sáp nhập từ:**\n` +
+        targetWard.mergedFrom.map((m) => `- ${m}`).join('\n')
+      );
     }
-    return `**Địa điểm nổi bật của ${targetWard.name}:**\n${targetWard.landmarks.map((l, i) => `${i + 1}. ${l.text}`).join('\n')}`;
-  }
-  
-  if (lowerQuestion.includes('mô tả') || lowerQuestion.includes('giới thiệu') || lowerQuestion.includes('thông tin')) {
-    if (!targetWard.description) {
-      return `Chưa có dữ liệu chi tiết mô tả về ${targetWard.name}.`;
+    if (/(dan so|bao nhieu nguoi|so dan)/.test(ql)) {
+      return `**Dân số ${targetWard.name}:** ${targetWard.population} người`;
     }
-    return `**Mô tả về ${targetWard.name}:**\n${targetWard.description}`;
+    if (/(dien tich|rong|km)/.test(ql)) {
+      return `**Diện tích ${targetWard.name}:** ${targetWard.area}`;
+    }
+    return formatWardSummary(targetWard);
   }
-  
-  // Default: return overview
-  let response = `**Thông tin về ${targetWard.name}:**\n`;
-  response += `- **Diện tích:** ${targetWard.area}\n`;
-  response += `- **Dân số:** ${targetWard.population} người\n`;
-  
-  if (targetWard.mergedFrom.length > 0) {
-    response += `- **Sáp nhập từ:** ${targetWard.mergedFrom.join(', ')}\n`;
+
+  // 3. Reverse lookup fallback (no explicit intent keyword)
+  const oldHits = findWardsByOldName(q);
+  if (oldHits.length) {
+    const uniq = Array.from(new Map(oldHits.map((o) => [o.ward.name + '|' + o.oldName, o])).values());
+    if (uniq.length === 1) {
+      return `**${uniq[0].oldName}** hiện nay đã sáp nhập vào **${uniq[0].ward.name}**.`;
+    }
+    const lines = uniq.map((o) => `- **${o.oldName}** → **${o.ward.name}**`);
+    return `Kết quả tra cứu sáp nhập:\n${lines.join('\n')}`;
   }
-  
-  if (targetWard.description) {
-    response += `\n**Mô tả:** ${targetWard.description}`;
+
+  // 4. Landmark / specialty search across all wards
+  const lsHits = findByLandmarkOrSpecialty(q);
+  if (lsHits.length) {
+    // Deduplicate
+    const uniq = Array.from(new Map(lsHits.map((h) => [h.ward.name + '|' + h.text, h])).values()).slice(0, 8);
+    const lines = uniq.map((h) => {
+      const label = h.type === 'landmark' ? 'Điểm đến' : 'Đặc sản';
+      return `- **${label}** thuộc **${h.ward.name}**: ${h.text}`;
+    });
+    return `Kết quả tìm thấy trong dữ liệu sáp nhập:\n${lines.join('\n')}`;
   }
-  
-  return response;
+
+  return NO_DATA_MSG;
 }

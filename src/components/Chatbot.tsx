@@ -16,7 +16,7 @@ export function Chatbot() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 0,
-      text: 'Xin chào! Tôi là trợ lý tra cứu thông tin phường/xã Hải Phòng. Bạn có thể hỏi về đặc sản, địa điểm, dân số, diện tích hoặc nguồn gốc sáp nhập của bất kỳ phường/xã nào.',
+      text: 'Chào bạn, tôi là trợ lý bản đồ Hải Phòng. Tôi có thể giúp bạn tra cứu thông tin về **114 phường xã mới** sau sáp nhập 2025.\n\nBạn có thể hỏi:\n- "Phường An Phong có gì?"\n- "Xã Hồng Phong giờ ở đâu?"\n- "Núi Voi thuộc phường nào?"\n- "Ăn gì ở Tiên Lãng?"',
       isBot: true,
     },
   ]);
